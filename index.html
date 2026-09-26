@@ -1,0 +1,556 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Rotaia — monopattino vs auto</title>
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#0A0B0A">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Rotaia">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<link rel="icon" href="icon-192.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Big+Shoulders+Display:wght@600;800&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#0A0B0A; --surface:#17191A; --ink:#F2F4EF;
+    --ink-60:rgba(242,244,239,.62); --ink-35:rgba(242,244,239,.35); --ink-10:rgba(242,244,239,.13);
+    --teal:#C6FF3A; --teal-soft:rgba(198,255,58,.14); --teal-ink:#C6FF3A; --teal-glow:rgba(198,255,58,.45);
+    --rust:#FF2FD6; --rust-soft:rgba(255,47,214,.15); --rust-ink:#FF6CE3; --rust-glow:rgba(255,47,214,.45);
+    --gold:#FFE94A; --gold-soft:rgba(255,233,74,.14);
+    --radius:12px;
+    padding-top: env(safe-area-inset-top, 0px);
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+    box-sizing: border-box;
+  }
+  @media (prefers-color-scheme: light){
+    :root[data-theme="light"]{
+      --bg:#ECEAE4; --surface:#FFFFFF; --ink:#22201C;
+      --ink-60:rgba(34,32,28,.62); --ink-35:rgba(34,32,28,.35); --ink-10:rgba(34,32,28,.12);
+      --teal:#0E7C7B; --teal-soft:#DCEEED; --teal-ink:#0A5958; --teal-glow:transparent;
+      --rust:#B5502E; --rust-soft:#F5E4DC; --rust-ink:#8A3B20; --rust-glow:transparent;
+      --gold:#B4831E; --gold-soft:#F3E8CC;
+    }
+  }
+  html{ scroll-padding-top: env(safe-area-inset-top, 0px); }
+  *{box-sizing:border-box;}
+  body{
+    margin:0; color:var(--ink);
+    background:
+      radial-gradient(circle at 12% -8%, var(--teal-soft) 0%, transparent 42%),
+      radial-gradient(circle at 105% 18%, var(--rust-soft) 0%, transparent 40%),
+      var(--bg);
+    background-attachment: fixed;
+    font-family:'IBM Plex Sans', -apple-system, system-ui, sans-serif;
+    -webkit-font-smoothing:antialiased;
+  }
+  .display{ font-family:'Big Shoulders Display', sans-serif; font-weight:800; letter-spacing:.01em; }
+  .mono{ font-family:'IBM Plex Mono', monospace; }
+  .road-rule{
+    height:3px; background-image: repeating-linear-gradient(90deg, var(--ink-35) 0 14px, transparent 14px 26px);
+    opacity:.5;
+  }
+  header.top{
+    position:sticky; top:0; z-index:5;
+    padding: calc(16px + env(safe-area-inset-top,0px)) 20px 14px;
+    background:var(--bg);
+    border-bottom:1px solid var(--ink-10);
+  }
+  header.top h1{
+    margin:0; font-size:22px; font-weight:600; font-family:'IBM Plex Sans';
+  }
+  header.top .sub{ margin-top:2px; font-size:13px; color:var(--ink-60); }
+
+  main{ padding: 16px 16px calc(96px + env(safe-area-inset-bottom,0px)); max-width:520px; margin:0 auto; }
+  section.view{ display:none; }
+  section.view.active{ display:block; }
+
+  .hero{
+    background:var(--surface); border:1px solid var(--ink-10); border-radius:var(--radius);
+    padding:22px 20px 18px; margin-bottom:14px; overflow:hidden; position:relative;
+  }
+  .hero .road-rule{ margin: -22px -20px 16px; }
+  .hero .label{ font-size:14px; color:var(--ink-60); }
+  .hero .amount{ font-size:56px; line-height:1; margin:4px 0 2px; text-shadow:0 0 26px var(--teal-glow); }
+  .hero .amount .cents{ font-size:28px; color:var(--ink-60); }
+  .breakeven{ margin-top:16px; }
+  .breakeven .row{ display:flex; justify-content:space-between; font-size:12px; color:var(--ink-60); margin-bottom:6px; }
+  .bar-track{ height:8px; border-radius:5px; background:var(--ink-10); overflow:hidden; }
+  .bar-fill{ height:100%; background:var(--teal); border-radius:5px; transition:width .4s ease; box-shadow:0 0 10px var(--teal-glow); }
+  .paid-off{ margin-top:10px; font-size:13px; color:var(--gold); font-weight:600; text-shadow:0 0 14px var(--gold-soft); }
+
+  .stat-grid{ display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-bottom:14px; }
+  .stat{
+    background:var(--surface); border:1px solid var(--ink-10); border-radius:var(--radius);
+    padding:14px; border-top:3px solid var(--ink-10);
+  }
+  .stat.teal{ border-top-color:var(--teal); }
+  .stat.rust{ border-top-color:var(--rust); }
+  .stat .n{ font-size:26px; }
+  .stat .l{ font-size:12px; color:var(--ink-60); margin-top:2px; }
+
+  .card{
+    background:var(--surface); border:1px solid var(--ink-10); border-radius:var(--radius);
+    padding:16px; margin-bottom:14px;
+  }
+  .card h2{ margin:0 0 12px; font-size:15px; font-weight:600; }
+  .usage-bar{ display:flex; height:14px; border-radius:7px; overflow:hidden; background:var(--ink-10); }
+  .usage-bar .seg-t{ background:var(--teal); }
+  .usage-bar .seg-r{ background:var(--rust); }
+  .usage-legend{ display:flex; gap:18px; margin-top:10px; font-size:13px; }
+  .usage-legend span{ display:inline-flex; align-items:center; gap:6px; color:var(--ink-60); }
+  .dot{ width:9px; height:9px; border-radius:50%; display:inline-block; }
+  .dot.t{ background:var(--teal); } .dot.r{ background:var(--rust); }
+
+  .chart-wrap svg{ width:100%; height:160px; display:block; }
+  .chart-empty{ font-size:13px; color:var(--ink-60); padding:10px 0; }
+
+  form label{ display:block; font-size:13px; color:var(--ink-60); margin:12px 0 6px; }
+  form label:first-of-type{ margin-top:0; }
+  input[type=date], input[type=number], select{
+    width:100%; padding:11px 12px; border-radius:8px; border:1px solid var(--ink-10);
+    background:var(--bg); color:var(--ink); font-size:15px; font-family:inherit;
+  }
+  input:focus, select:focus, button:focus-visible{ outline:2px solid var(--teal); outline-offset:1px; }
+  .seg{ display:flex; gap:8px; }
+  .seg button{
+    flex:1; padding:12px; border-radius:8px; border:1px solid var(--ink-10); background:var(--surface);
+    color:var(--ink); font-size:14px; font-weight:500; cursor:pointer; font-family:inherit;
+  }
+  .seg button.on.t{ background:var(--teal-soft); border-color:var(--teal); color:var(--teal-ink); box-shadow:0 0 14px var(--teal-glow); }
+  .seg button.on.r{ background:var(--rust-soft); border-color:var(--rust); color:var(--rust-ink); box-shadow:0 0 14px var(--rust-glow); }
+  .primary-btn{
+    margin-top:18px; width:100%; padding:13px; border:none; border-radius:8px;
+    background:var(--ink); color:var(--bg); font-size:15px; font-weight:600; cursor:pointer; font-family:inherit;
+  }
+  .primary-btn:active{ opacity:.85; }
+  .ghost-btn{
+    width:100%; padding:12px; border-radius:8px; border:1px solid var(--ink-10); background:transparent;
+    color:var(--ink-60); font-size:13px; cursor:pointer; font-family:inherit; margin-top:6px;
+  }
+
+  .trip-row{
+    display:flex; align-items:center; gap:12px; padding:12px 0; border-bottom:1px solid var(--ink-10);
+  }
+  .trip-row:last-child{ border-bottom:none; }
+  .trip-icon{
+    width:36px; height:36px; border-radius:50%; display:flex; align-items:center; justify-content:center; flex-shrink:0;
+  }
+  .trip-icon.t{ background:var(--teal-soft); } .trip-icon.r{ background:var(--rust-soft); }
+  .trip-icon svg{ width:18px; height:18px; }
+  .trip-mid{ flex:1; min-width:0; }
+  .trip-mid .d{ font-size:14px; font-weight:500; }
+  .trip-mid .k{ font-size:12px; color:var(--ink-60); }
+  .trip-val{ text-align:right; font-size:14px; }
+  .trip-val.pos{ color:var(--teal-ink); }
+  .trip-del{ background:none; border:none; color:var(--ink-35); font-size:18px; cursor:pointer; padding:4px 2px 4px 10px; }
+  .empty-state{ text-align:center; padding:30px 10px; color:var(--ink-60); font-size:14px; }
+
+  fieldset{ border:none; padding:0; margin:0; }
+  .param-note{ font-size:12px; color:var(--ink-60); margin-top:14px; line-height:1.5; }
+
+  nav.bottom{
+    position:fixed; left:0; right:0; bottom:0; z-index:5;
+    display:flex; background:var(--surface); border-top:1px solid var(--ink-10);
+    padding: 8px 4px calc(8px + env(safe-area-inset-bottom,0px));
+  }
+  nav.bottom button{
+    flex:1; background:none; border:none; display:flex; flex-direction:column; align-items:center; gap:4px;
+    padding:6px 2px; color:var(--ink-35); font-family:inherit; font-size:11px; cursor:pointer;
+  }
+  nav.bottom button svg{ width:22px; height:22px; }
+  nav.bottom button.active{ color:var(--teal); filter:drop-shadow(0 0 6px var(--teal-glow)); }
+  nav.bottom button.add-btn{ color:var(--ink); }
+  nav.bottom button.add-btn.active{ color:var(--teal); }
+
+  @media (prefers-reduced-motion: reduce){ *{ transition:none !important; } }
+</style>
+</head>
+<body>
+
+<header class="top">
+  <h1>Rotaia</h1>
+  <div class="sub" id="headerSub">Monopattino vs auto</div>
+</header>
+
+<main>
+
+  <section class="view active" id="view-dashboard">
+    <div class="hero">
+      <div class="road-rule"></div>
+      <div class="label">Risparmio totale finora</div>
+      <div class="amount display"><span id="heroInt">0</span><span class="cents" id="heroCents">,00 €</span></div>
+      <div class="breakeven">
+        <div class="row"><span>Ammortamento monopattino</span><span id="beLabel">0%</span></div>
+        <div class="bar-track"><div class="bar-fill" id="beBar" style="width:0%"></div></div>
+        <div class="paid-off" id="paidOffMsg" style="display:none;">Il monopattino si è ripagato — ora è tutto risparmio netto.</div>
+      </div>
+    </div>
+
+    <div class="stat-grid">
+      <div class="stat teal"><div class="n mono" id="statKmScooter">0 km</div><div class="l">Percorsi in monopattino</div></div>
+      <div class="stat rust"><div class="n mono" id="statKmCar">0 km</div><div class="l">Percorsi in auto</div></div>
+      <div class="stat"><div class="n mono" id="statMonth">0,00 €</div><div class="l">Risparmiati questo mese</div></div>
+      <div class="stat"><div class="n mono" id="statPct">0%</div><div class="l">Spostamenti in monopattino</div></div>
+    </div>
+
+    <div class="card">
+      <h2>Chi si muove di più</h2>
+      <div class="usage-bar"><div class="seg-t" id="usageT" style="width:50%"></div><div class="seg-r" id="usageR" style="width:50%"></div></div>
+      <div class="usage-legend">
+        <span><span class="dot t"></span>Monopattino</span>
+        <span><span class="dot r"></span>Auto</span>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>Risparmio mensile</h2>
+      <div class="chart-wrap" id="chartWrap"></div>
+    </div>
+  </section>
+
+  <section class="view" id="view-add">
+    <div class="card">
+      <h2>Nuovo spostamento</h2>
+      <form id="tripForm">
+        <label for="tripDate">Data</label>
+        <input type="date" id="tripDate" required>
+
+        <label>Mezzo</label>
+        <div class="seg">
+          <button type="button" id="btnScooter" class="on t">Monopattino</button>
+          <button type="button" id="btnCar" class="r">Auto</button>
+        </div>
+
+        <label for="tripKm">Chilometri percorsi</label>
+        <input type="number" id="tripKm" min="0" step="0.1" inputmode="decimal" placeholder="es. 6.5" required>
+
+        <button type="submit" class="primary-btn">Salva spostamento</button>
+      </form>
+    </div>
+  </section>
+
+  <section class="view" id="view-history">
+    <div class="card">
+      <h2>Storico spostamenti</h2>
+      <div id="historyList"></div>
+    </div>
+  </section>
+
+  <section class="view" id="view-params">
+    <div class="card">
+      <h2>Parametri di calcolo</h2>
+      <form id="paramForm">
+        <fieldset>
+          <label for="pBenzina">Prezzo benzina (€/litro)</label>
+          <input type="number" id="pBenzina" min="0" step="0.01">
+
+          <label for="pConsumoAuto">Consumo auto (litri/100 km)</label>
+          <input type="number" id="pConsumoAuto" min="0" step="0.1">
+
+          <label for="pElettrico">Prezzo elettricità (€/kWh)</label>
+          <input type="number" id="pElettrico" min="0" step="0.01">
+
+          <label for="pConsumoScooter">Consumo monopattino (Wh/km)</label>
+          <input type="number" id="pConsumoScooter" min="0" step="0.5">
+
+          <label for="pCostoIniziale">Costo di acquisto monopattino (€)</label>
+          <input type="number" id="pCostoIniziale" min="0" step="0.01">
+
+          <label for="pManutenzione">Manutenzione stimata (€/anno)</label>
+          <input type="number" id="pManutenzione" min="0" step="1">
+
+          <label for="pDataAcquisto">Data di acquisto</label>
+          <input type="date" id="pDataAcquisto">
+        </fieldset>
+        <button type="submit" class="primary-btn">Salva parametri</button>
+      </form>
+      <div class="param-note">Il consumo del monopattino tiene conto meglio del percorso se lo tari sul tuo terreno: in zone collinari, con più salite, l'assorbimento reale è più alto di quello dichiarato in pianura.</div>
+      <button class="ghost-btn" id="resetBtn">Cancella tutti gli spostamenti</button>
+    </div>
+  </section>
+
+</main>
+
+<nav class="bottom">
+  <button data-view="dashboard" class="active">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 11 12 4l9 7"/><path d="M5 10v9a1 1 0 0 0 1 1h4v-6h4v6h4a1 1 0 0 0 1-1v-9"/></svg>
+    Dashboard
+  </button>
+  <button data-view="add" class="add-btn">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 8v8M8 12h8"/></svg>
+    Aggiungi
+  </button>
+  <button data-view="history">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6h16M4 12h16M4 18h10"/></svg>
+    Storico
+  </button>
+  <button data-view="params">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .34 1.87l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.7 1.7 0 0 0-1.87-.34 1.7 1.7 0 0 0-1.04 1.56V21a2 2 0 1 1-4 0v-.09A1.7 1.7 0 0 0 8.96 19a1.7 1.7 0 0 0-1.87.34l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.7 1.7 0 0 0 4.6 15a1.7 1.7 0 0 0-1.56-1.04H3a2 2 0 1 1 0-4h.09A1.7 1.7 0 0 0 4.6 8.96a1.7 1.7 0 0 0-.34-1.87l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.7 1.7 0 0 0 9 4.6a1.7 1.7 0 0 0 1.04-1.56V3a2 2 0 1 1 4 0v.09A1.7 1.7 0 0 0 15 4.6a1.7 1.7 0 0 0 1.87-.34l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.7 1.7 0 0 0 19.4 9a1.7 1.7 0 0 0 1.56 1.04H21a2 2 0 1 1 0 4h-.09A1.7 1.7 0 0 0 19.4 15Z"/></svg>
+    Parametri
+  </button>
+</nav>
+
+<script>
+(function(){
+  "use strict";
+
+  var TRIPS_KEY = "rotaia_trips_v1";
+  var PARAMS_KEY = "rotaia_params_v1";
+
+  var DEFAULT_PARAMS = {
+    prezzoBenzina: 2.13,
+    consumoAuto: 9,
+    prezzoElettrico: 0.25,
+    consumoScooter: 17.5,
+    costoIniziale: 736.82,
+    manutenzioneAnnua: 50,
+    dataAcquisto: todayStr()
+  };
+
+  function todayStr(){
+    var d = new Date();
+    return d.toISOString().slice(0,10);
+  }
+
+  function loadJSON(key, fallback){
+    try{
+      var raw = localStorage.getItem(key);
+      if(!raw) return fallback;
+      return JSON.parse(raw);
+    }catch(e){ return fallback; }
+  }
+  function saveJSON(key, val){
+    try{ localStorage.setItem(key, JSON.stringify(val)); }catch(e){}
+  }
+
+  var params = Object.assign({}, DEFAULT_PARAMS, loadJSON(PARAMS_KEY, {}));
+  var trips = loadJSON(TRIPS_KEY, []);
+
+  function euro(n){
+    var neg = n < 0;
+    n = Math.abs(n);
+    var s = n.toFixed(2).replace(".", ",");
+    return (neg?"-":"") + s + " €";
+  }
+
+  function costoAuto(km){ return km * (params.consumoAuto/100) * params.prezzoBenzina; }
+  function costoScooter(km){ return km * (params.consumoScooter/1000) * params.prezzoElettrico; }
+
+  function tripSaving(t){
+    if(t.mezzo === "monopattino") return costoAuto(t.km) - costoScooter(t.km);
+    return 0;
+  }
+  function tripCost(t){
+    return t.mezzo === "monopattino" ? costoScooter(t.km) : costoAuto(t.km);
+  }
+
+  function investimentoTotale(){
+    var acq = new Date(params.dataAcquisto);
+    var now = new Date();
+    var giorni = Math.max(0, (now - acq) / 86400000);
+    return params.costoIniziale + params.manutenzioneAnnua * (giorni/365);
+  }
+
+  // ---------- Views ----------
+  var views = ["dashboard","add","history","params"];
+  function showView(name){
+    views.forEach(function(v){
+      document.getElementById("view-"+v).classList.toggle("active", v===name);
+    });
+    document.querySelectorAll("nav.bottom button").forEach(function(b){
+      b.classList.toggle("active", b.getAttribute("data-view")===name);
+    });
+    if(name==="dashboard") renderDashboard();
+    if(name==="history") renderHistory();
+    if(name==="params") fillParamForm();
+  }
+  document.querySelectorAll("nav.bottom button").forEach(function(b){
+    b.addEventListener("click", function(){ showView(b.getAttribute("data-view")); });
+  });
+
+  // ---------- Dashboard ----------
+  var MONTHS = ["gen","feb","mar","apr","mag","giu","lug","ago","set","ott","nov","dic"];
+
+  function renderDashboard(){
+    var totalSaving = trips.reduce(function(s,t){ return s + tripSaving(t); }, 0);
+    var intPart = Math.trunc(totalSaving);
+    var centPart = Math.abs(totalSaving - intPart).toFixed(2).split(".")[1];
+    document.getElementById("heroInt").textContent = intPart;
+    document.getElementById("heroCents").textContent = "," + centPart + " €";
+
+    var invest = investimentoTotale();
+    var pct = invest > 0 ? Math.min(100, Math.max(0,(totalSaving/invest)*100)) : 100;
+    document.getElementById("beBar").style.width = pct.toFixed(0) + "%";
+    document.getElementById("beLabel").textContent = pct.toFixed(0) + "%";
+    document.getElementById("paidOffMsg").style.display = (totalSaving >= invest && invest > 0) ? "block" : "none";
+
+    var kmScooter = trips.filter(function(t){return t.mezzo==="monopattino";}).reduce(function(s,t){return s+t.km;},0);
+    var kmCar = trips.filter(function(t){return t.mezzo==="auto";}).reduce(function(s,t){return s+t.km;},0);
+    document.getElementById("statKmScooter").textContent = fmtKm(kmScooter);
+    document.getElementById("statKmCar").textContent = fmtKm(kmCar);
+
+    var now = new Date();
+    var monthKey = now.getFullYear()+"-"+String(now.getMonth()+1).padStart(2,"0");
+    var monthSaving = trips.filter(function(t){ return t.date.slice(0,7)===monthKey; })
+      .reduce(function(s,t){ return s + tripSaving(t); },0);
+    document.getElementById("statMonth").textContent = euro(monthSaving);
+
+    var totTrips = trips.length;
+    var scooterTrips = trips.filter(function(t){return t.mezzo==="monopattino";}).length;
+    var pctTrips = totTrips>0 ? Math.round((scooterTrips/totTrips)*100) : 0;
+    document.getElementById("statPct").textContent = pctTrips + "%";
+
+    var totalKm = kmScooter + kmCar;
+    var usageT = totalKm>0 ? (kmScooter/totalKm*100) : 50;
+    document.getElementById("usageT").style.width = usageT.toFixed(0)+"%";
+    document.getElementById("usageR").style.width = (100-usageT).toFixed(0)+"%";
+
+    renderChart();
+  }
+
+  function fmtKm(n){
+    return (Math.round(n*10)/10).toString().replace(".", ",") + " km";
+  }
+
+  function renderChart(){
+    var wrap = document.getElementById("chartWrap");
+    if(trips.length === 0){
+      wrap.innerHTML = '<div class="chart-empty">Aggiungi qualche spostamento per vedere l\'andamento mensile.</div>';
+      return;
+    }
+    var now = new Date();
+    var buckets = [];
+    for(var i=5;i>=0;i--){
+      var d = new Date(now.getFullYear(), now.getMonth()-i, 1);
+      var key = d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0");
+      buckets.push({key:key, label:MONTHS[d.getMonth()], value:0});
+    }
+    trips.forEach(function(t){
+      var key = t.date.slice(0,7);
+      var b = buckets.find(function(x){return x.key===key;});
+      if(b) b.value += tripSaving(t);
+    });
+    var max = Math.max.apply(null, buckets.map(function(b){return Math.abs(b.value);}).concat([1]));
+    var w = 300, h = 158, padB = 20, padT = 16, barW = 28, gap = (w - barW*6)/7;
+    var barMaxH = h - padB - padT;
+    var svg = '<svg viewBox="0 0 '+w+' '+h+'" preserveAspectRatio="xMidYMid meet">';
+    buckets.forEach(function(b, i){
+      var x = gap + i*(barW+gap);
+      var barH = Math.max(2, (Math.abs(b.value)/max) * barMaxH);
+      var y = h - padB - barH;
+      var color = b.value >= 0 ? "var(--teal)" : "var(--rust)";
+      var labelY = Math.max(padT - 4, y - 6);
+      var valLabel = (b.value > 0 ? "+" : b.value < 0 ? "−" : "") + Math.round(Math.abs(b.value)) + "€";
+      svg += '<rect x="'+x+'" y="'+y+'" width="'+barW+'" height="'+barH+'" rx="3" fill="'+color+'"></rect>';
+      svg += '<text x="'+(x+barW/2)+'" y="'+labelY+'" text-anchor="middle" font-size="9.5" font-weight="600" fill="'+color+'" font-family="IBM Plex Mono">'+valLabel+'</text>';
+      svg += '<text x="'+(x+barW/2)+'" y="'+(h-4)+'" text-anchor="middle" font-size="10" fill="var(--ink-60)" font-family="IBM Plex Sans">'+b.label+'</text>';
+    });
+    svg += '</svg>';
+    wrap.innerHTML = svg;
+  }
+
+  // ---------- Add trip ----------
+  var mezzoSel = "monopattino";
+  var btnScooter = document.getElementById("btnScooter");
+  var btnCar = document.getElementById("btnCar");
+  btnScooter.addEventListener("click", function(){ mezzoSel="monopattino"; btnScooter.classList.add("on"); btnCar.classList.remove("on"); });
+  btnCar.addEventListener("click", function(){ mezzoSel="auto"; btnCar.classList.add("on"); btnScooter.classList.remove("on"); });
+
+  document.getElementById("tripDate").value = todayStr();
+
+  document.getElementById("tripForm").addEventListener("submit", function(e){
+    e.preventDefault();
+    var date = document.getElementById("tripDate").value || todayStr();
+    var km = parseFloat(document.getElementById("tripKm").value);
+    if(!km || km<=0) return;
+    trips.push({ id: Date.now()+"-"+Math.random().toString(36).slice(2,7), date: date, mezzo: mezzoSel, km: km });
+    trips.sort(function(a,b){ return a.date < b.date ? 1 : -1; });
+    saveJSON(TRIPS_KEY, trips);
+    document.getElementById("tripKm").value = "";
+    showView("dashboard");
+  });
+
+  // ---------- History ----------
+  function renderHistory(){
+    var list = document.getElementById("historyList");
+    if(trips.length===0){
+      list.innerHTML = '<div class="empty-state">Ancora nessuno spostamento registrato.</div>';
+      return;
+    }
+    var html = "";
+    trips.forEach(function(t){
+      var isScooter = t.mezzo==="monopattino";
+      var saving = tripSaving(t);
+      var cost = tripCost(t);
+      var dateFmt = new Date(t.date+"T00:00:00").toLocaleDateString("it-IT",{day:"numeric",month:"short"});
+      html += '<div class="trip-row">'
+        + '<div class="trip-icon '+(isScooter?"t":"r")+'">'
+        + (isScooter
+            ? '<svg viewBox="0 0 24 24" fill="none" stroke="var(--teal-ink)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="6" cy="18" r="2.2"/><circle cx="17" cy="18" r="2.2"/><path d="M8 18h6l3-9h2M11 18l3-9M6 9h4"/></svg>'
+            : '<svg viewBox="0 0 24 24" fill="none" stroke="var(--rust-ink)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 13l1.5-4.5A2 2 0 0 1 6.4 7h11.2a2 2 0 0 1 1.9 1.5L21 13"/><rect x="3" y="13" width="18" height="5" rx="1.5"/><circle cx="7" cy="18" r="1.6"/><circle cx="17" cy="18" r="1.6"/></svg>')
+        + '</div>'
+        + '<div class="trip-mid"><div class="d">'+dateFmt+' · '+(isScooter?"Monopattino":"Auto")+'</div>'
+        + '<div class="k">'+t.km.toString().replace(".",",")+' km</div></div>'
+        + '<div class="trip-val '+(isScooter?"pos":"")+' mono">'+(isScooter?"+"+euro(saving):euro(-cost))+'</div>'
+        + '<button class="trip-del" data-id="'+t.id+'" aria-label="Elimina">×</button>'
+        + '</div>';
+    });
+    list.innerHTML = html;
+    list.querySelectorAll(".trip-del").forEach(function(btn){
+      btn.addEventListener("click", function(){
+        trips = trips.filter(function(t){ return t.id !== btn.getAttribute("data-id"); });
+        saveJSON(TRIPS_KEY, trips);
+        renderHistory();
+      });
+    });
+  }
+
+  // ---------- Params ----------
+  function fillParamForm(){
+    document.getElementById("pBenzina").value = params.prezzoBenzina;
+    document.getElementById("pConsumoAuto").value = params.consumoAuto;
+    document.getElementById("pElettrico").value = params.prezzoElettrico;
+    document.getElementById("pConsumoScooter").value = params.consumoScooter;
+    document.getElementById("pCostoIniziale").value = params.costoIniziale;
+    document.getElementById("pManutenzione").value = params.manutenzioneAnnua;
+    document.getElementById("pDataAcquisto").value = params.dataAcquisto;
+  }
+  document.getElementById("paramForm").addEventListener("submit", function(e){
+    e.preventDefault();
+    params.prezzoBenzina = parseFloat(document.getElementById("pBenzina").value) || DEFAULT_PARAMS.prezzoBenzina;
+    params.consumoAuto = parseFloat(document.getElementById("pConsumoAuto").value) || DEFAULT_PARAMS.consumoAuto;
+    params.prezzoElettrico = parseFloat(document.getElementById("pElettrico").value) || DEFAULT_PARAMS.prezzoElettrico;
+    params.consumoScooter = parseFloat(document.getElementById("pConsumoScooter").value) || DEFAULT_PARAMS.consumoScooter;
+    params.costoIniziale = parseFloat(document.getElementById("pCostoIniziale").value) || 0;
+    params.manutenzioneAnnua = parseFloat(document.getElementById("pManutenzione").value) || 0;
+    params.dataAcquisto = document.getElementById("pDataAcquisto").value || DEFAULT_PARAMS.dataAcquisto;
+    saveJSON(PARAMS_KEY, params);
+    showView("dashboard");
+  });
+
+  document.getElementById("resetBtn").addEventListener("click", function(){
+    if(confirm("Cancellare tutti gli spostamenti registrati? L'azione non è reversibile.")){
+      trips = [];
+      saveJSON(TRIPS_KEY, trips);
+      renderHistory();
+      renderDashboard();
+    }
+  });
+
+  // ---------- Init ----------
+  renderDashboard();
+
+  if("serviceWorker" in navigator){
+    window.addEventListener("load", function(){
+      navigator.serviceWorker.register("sw.js").catch(function(){});
+    });
+  }
+})();
+</script>
+</body>
+</html>
