@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Rotaia — monopattino vs auto</title>
+<title>Max G3 Saving — monopattino vs auto</title>
 <link rel="manifest" href="manifest.json">
 <meta name="theme-color" content="#0A0B0A">
 <script>
@@ -17,7 +17,7 @@
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<meta name="apple-mobile-web-app-title" content="Rotaia">
+<meta name="apple-mobile-web-app-title" content="Max G3 Saving">
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
 <link rel="icon" href="icon-192.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -264,7 +264,7 @@
 <body>
 
 <header class="top">
-  <h1>Rotaia</h1>
+  <h1>Max G3 Saving</h1>
   <div class="sub" id="headerSub">Monopattino vs auto</div>
 </header>
 
@@ -1161,7 +1161,7 @@
     try{
       var blob = buildCSVBlob();
       var file = new File([blob], "rotaia-spostamenti-" + todayStr() + ".csv", { type: "text/csv" });
-      navigator.share({ files:[file], title:"Backup Rotaia", text:"Backup dei miei spostamenti Rotaia" })
+      navigator.share({ files:[file], title:"Backup Max G3 Saving", text:"Backup dei miei spostamenti Max G3 Saving" })
         .then(function(){
           localStorage.setItem(BACKUP_KEY, todayStr());
           renderBackupStatus();

@@ -1,6 +1,6 @@
 {
-  "name": "Rotaia — monopattino vs auto",
-  "short_name": "Rotaia",
+  "name": "Max G3 Saving — monopattino vs auto",
+  "short_name": "Max G3",
   "start_url": "./index.html",
   "scope": "./",
   "display": "standalone",
