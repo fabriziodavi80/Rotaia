@@ -147,11 +147,18 @@
   .trip-mid .k{ font-size:12px; color:var(--ink-60); }
   .trip-val{ text-align:right; font-size:14px; }
   .trip-val.pos{ color:var(--teal-ink); }
+  .trip-val.neg{ color:var(--rust-ink); }
   .trip-del{ background:none; border:none; color:var(--ink-35); font-size:18px; cursor:pointer; padding:4px 2px 4px 10px; }
   .empty-state{ text-align:center; padding:30px 10px; color:var(--ink-60); font-size:14px; }
 
   fieldset{ border:none; padding:0; margin:0; }
   .param-note{ font-size:12px; color:var(--ink-60); margin-top:14px; line-height:1.5; }
+  .derived{ margin-top:18px; border-top:1px dashed var(--ink-35); padding-top:12px; }
+  .derived-row{ display:flex; justify-content:space-between; gap:12px; padding:5px 0; font-size:13px; color:var(--ink-60); }
+  .derived-row .mono{ color:var(--ink); }
+  .derived-row.tot{ font-weight:600; color:var(--ink); }
+  .derived-row.tot.t .mono{ color:var(--teal); }
+  .derived-row.tot.r .mono{ color:var(--rust); }
 
   nav.bottom{
     position:fixed; left:0; right:0; bottom:0; z-index:5;
@@ -195,7 +202,7 @@
       <div class="stat teal"><div class="n mono" id="statKmScooter">0 km</div><div class="l">Percorsi in monopattino</div></div>
       <div class="stat rust"><div class="n mono" id="statKmCar">0 km</div><div class="l">Percorsi in auto</div></div>
       <div class="stat"><div class="n mono" id="statMonth">0,00 €</div><div class="l">Risparmiati questo mese</div></div>
-      <div class="stat"><div class="n mono" id="statPct">0%</div><div class="l">Spostamenti in monopattino</div></div>
+      <div class="stat"><div class="n mono" id="statPct">0%</div><div class="l">Utilizzo monopattino (su km)</div></div>
     </div>
 
     <div class="card">
@@ -247,29 +254,39 @@
       <form id="paramForm">
         <fieldset>
           <label for="pBenzina">Prezzo benzina (€/litro)</label>
-          <input type="number" id="pBenzina" min="0" step="0.01">
+          <input type="number" id="pBenzina" min="0" step="0.01" inputmode="decimal">
 
           <label for="pConsumoAuto">Consumo auto (litri/100 km)</label>
-          <input type="number" id="pConsumoAuto" min="0" step="0.1">
+          <input type="number" id="pConsumoAuto" min="0" step="0.1" inputmode="decimal">
 
-          <label for="pElettrico">Prezzo elettricità (€/kWh)</label>
-          <input type="number" id="pElettrico" min="0" step="0.01">
+          <label for="pElettrico">Tariffa elettrica (€/kWh)</label>
+          <input type="number" id="pElettrico" min="0" step="0.01" inputmode="decimal">
 
-          <label for="pConsumoScooter">Consumo monopattino (Wh/km)</label>
-          <input type="number" id="pConsumoScooter" min="0" step="0.5">
+          <label for="pBatteria">Capacità batteria monopattino (kWh)</label>
+          <input type="number" id="pBatteria" min="0" step="0.001" inputmode="decimal">
 
-          <label for="pCostoIniziale">Costo di acquisto monopattino (€)</label>
-          <input type="number" id="pCostoIniziale" min="0" step="0.01">
+          <label for="pAutonomia">Autonomia reale stimata (km per carica)</label>
+          <input type="number" id="pAutonomia" min="1" step="1" inputmode="decimal">
 
-          <label for="pManutenzione">Manutenzione stimata (€/anno)</label>
-          <input type="number" id="pManutenzione" min="0" step="1">
+          <label for="pCostoIniziale">Costo acquisto monopattino, targa inclusa (€)</label>
+          <input type="number" id="pCostoIniziale" min="0" step="0.01" inputmode="decimal">
 
-          <label for="pDataAcquisto">Data di acquisto</label>
-          <input type="date" id="pDataAcquisto">
+          <label for="pManutenzione">Manutenzione annua, assicurazione inclusa (€/anno)</label>
+          <input type="number" id="pManutenzione" min="0" step="1" inputmode="decimal">
+
+          <label for="pKmAnnui">Km annui stimati (per ripartire la manutenzione)</label>
+          <input type="number" id="pKmAnnui" min="1" step="50" inputmode="decimal">
         </fieldset>
         <button type="submit" class="primary-btn">Salva parametri</button>
       </form>
-      <div class="param-note">Il consumo del monopattino tiene conto meglio del percorso se lo tari sul tuo terreno: in zone collinari, con più salite, l'assorbimento reale è più alto di quello dichiarato in pianura.</div>
+      <div class="derived" id="derivedBox">
+        <div class="derived-row"><span>Consumo monopattino</span><span class="mono" id="dConsumo">—</span></div>
+        <div class="derived-row"><span>Energia al km</span><span class="mono" id="dEnergia">—</span></div>
+        <div class="derived-row"><span>Manutenzione al km</span><span class="mono" id="dManut">—</span></div>
+        <div class="derived-row tot t"><span>Monopattino, costo totale al km</span><span class="mono" id="dTotScooter">—</span></div>
+        <div class="derived-row tot r"><span>Auto, costo al km</span><span class="mono" id="dTotAuto">—</span></div>
+      </div>
+      <div class="param-note">Su percorso collinare l'autonomia reale è molto più bassa di quella dichiarata: conviene verificarla guardando la % di batteria consumata sui tuoi tragitti tipici.</div>
       <button class="ghost-btn" id="resetBtn">Cancella tutti gli spostamenti</button>
     </div>
   </section>
@@ -300,16 +317,18 @@
   "use strict";
 
   var TRIPS_KEY = "rotaia_trips_v1";
-  var PARAMS_KEY = "rotaia_params_v1";
+  var PARAMS_KEY = "rotaia_params_v2";
 
+  // Valori di partenza = quelli del foglio Excel "tracker_dst.xlsx"
   var DEFAULT_PARAMS = {
     prezzoBenzina: 2.13,
-    consumoAuto: 9,
-    prezzoElettrico: 0.25,
-    consumoScooter: 17.5,
-    costoIniziale: 736.82,
-    manutenzioneAnnua: 50,
-    dataAcquisto: todayStr()
+    consumoAuto: 10.8,        // l/100 km
+    prezzoElettrico: 0.30,    // €/kWh
+    capacitaBatteria: 0.597,  // kWh
+    autonomiaReale: 35,       // km per carica (uso reale, collina)
+    costoIniziale: 773.18,    // 736,82 + 36,36 targa
+    manutenzioneAnnua: 141,   // 50 + 91 assicurazione
+    kmAnnui: 1500             // base per ripartire la manutenzione al km
   };
 
   function todayStr(){
@@ -338,23 +357,34 @@
     return (neg?"-":"") + s + " €";
   }
 
-  function costoAuto(km){ return km * (params.consumoAuto/100) * params.prezzoBenzina; }
-  function costoScooter(km){ return km * (params.consumoScooter/1000) * params.prezzoElettrico; }
-
-  function tripSaving(t){
-    if(t.mezzo === "monopattino") return costoAuto(t.km) - costoScooter(t.km);
-    return 0;
+  // Costi al km (identici alle celle C15:C19 del foglio Parametri)
+  function derivati(){
+    var kwhKm = params.capacitaBatteria / params.autonomiaReale;
+    var energia = kwhKm * params.prezzoElettrico;
+    var manut = params.manutenzioneAnnua / params.kmAnnui;
+    return {
+      whKm: kwhKm * 1000,
+      energia: energia,
+      manut: manut,
+      scooter: energia + manut,
+      auto: (params.consumoAuto/100) * params.prezzoBenzina
+    };
   }
+
+  // Come nel foglio Excel: risparmio = costo con l'altro mezzo - costo effettivo.
+  // Con il monopattino è positivo; con l'auto è negativo (risparmio mancato).
   function tripCost(t){
-    return t.mezzo === "monopattino" ? costoScooter(t.km) : costoAuto(t.km);
+    var d = derivati();
+    return t.km * (t.mezzo === "monopattino" ? d.scooter : d.auto);
   }
+  function tripAltCost(t){
+    var d = derivati();
+    return t.km * (t.mezzo === "monopattino" ? d.auto : d.scooter);
+  }
+  function tripSaving(t){ return tripAltCost(t) - tripCost(t); }
 
-  function investimentoTotale(){
-    var acq = new Date(params.dataAcquisto);
-    var now = new Date();
-    var giorni = Math.max(0, (now - acq) / 86400000);
-    return params.costoIniziale + params.manutenzioneAnnua * (giorni/365);
-  }
+  // Il foglio Excel confronta il risparmio con il solo costo di acquisto
+  function investimentoTotale(){ return params.costoIniziale; }
 
   // ---------- Views ----------
   var views = ["dashboard","add","history","params"];
@@ -378,10 +408,9 @@
 
   function renderDashboard(){
     var totalSaving = trips.reduce(function(s,t){ return s + tripSaving(t); }, 0);
-    var intPart = Math.trunc(totalSaving);
-    var centPart = Math.abs(totalSaving - intPart).toFixed(2).split(".")[1];
-    document.getElementById("heroInt").textContent = intPart;
-    document.getElementById("heroCents").textContent = "," + centPart + " €";
+    var absTot = Math.abs(totalSaving).toFixed(2).split(".");
+    document.getElementById("heroInt").textContent = (totalSaving < 0 && Number(absTot[0]+"."+absTot[1]) !== 0 ? "−" : "") + absTot[0];
+    document.getElementById("heroCents").textContent = "," + absTot[1] + " €";
 
     var invest = investimentoTotale();
     var pct = invest > 0 ? Math.min(100, Math.max(0,(totalSaving/invest)*100)) : 100;
@@ -400,12 +429,8 @@
       .reduce(function(s,t){ return s + tripSaving(t); },0);
     document.getElementById("statMonth").textContent = euro(monthSaving);
 
-    var totTrips = trips.length;
-    var scooterTrips = trips.filter(function(t){return t.mezzo==="monopattino";}).length;
-    var pctTrips = totTrips>0 ? Math.round((scooterTrips/totTrips)*100) : 0;
-    document.getElementById("statPct").textContent = pctTrips + "%";
-
     var totalKm = kmScooter + kmCar;
+    document.getElementById("statPct").textContent = (totalKm>0 ? Math.round(kmScooter/totalKm*100) : 0) + "%";
     var usageT = totalKm>0 ? (kmScooter/totalKm*100) : 50;
     document.getElementById("usageT").style.width = usageT.toFixed(0)+"%";
     document.getElementById("usageR").style.width = (100-usageT).toFixed(0)+"%";
@@ -486,7 +511,6 @@
     trips.forEach(function(t){
       var isScooter = t.mezzo==="monopattino";
       var saving = tripSaving(t);
-      var cost = tripCost(t);
       var dateFmt = new Date(t.date+"T00:00:00").toLocaleDateString("it-IT",{day:"numeric",month:"short"});
       html += '<div class="trip-row">'
         + '<div class="trip-icon '+(isScooter?"t":"r")+'">'
@@ -496,7 +520,7 @@
         + '</div>'
         + '<div class="trip-mid"><div class="d">'+dateFmt+' · '+(isScooter?"Monopattino":"Auto")+'</div>'
         + '<div class="k">'+t.km.toString().replace(".",",")+' km</div></div>'
-        + '<div class="trip-val '+(isScooter?"pos":"")+' mono">'+(isScooter?"+"+euro(saving):euro(-cost))+'</div>'
+        + '<div class="trip-val '+(saving>=0?"pos":"neg")+' mono">'+(saving>=0?"+":"")+euro(saving)+'</div>'
         + '<button class="trip-del" data-id="'+t.id+'" aria-label="Elimina">×</button>'
         + '</div>';
     });
@@ -511,24 +535,48 @@
   }
 
   // ---------- Params ----------
-  function fillParamForm(){
-    document.getElementById("pBenzina").value = params.prezzoBenzina;
-    document.getElementById("pConsumoAuto").value = params.consumoAuto;
-    document.getElementById("pElettrico").value = params.prezzoElettrico;
-    document.getElementById("pConsumoScooter").value = params.consumoScooter;
-    document.getElementById("pCostoIniziale").value = params.costoIniziale;
-    document.getElementById("pManutenzione").value = params.manutenzioneAnnua;
-    document.getElementById("pDataAcquisto").value = params.dataAcquisto;
+  var PARAM_FIELDS = [
+    ["pBenzina","prezzoBenzina"], ["pConsumoAuto","consumoAuto"], ["pElettrico","prezzoElettrico"],
+    ["pBatteria","capacitaBatteria"], ["pAutonomia","autonomiaReale"], ["pCostoIniziale","costoIniziale"],
+    ["pManutenzione","manutenzioneAnnua"], ["pKmAnnui","kmAnnui"]
+  ];
+
+  function fmt(n, dec){ return n.toFixed(dec).replace(".", ","); }
+
+  function renderDerived(p){
+    var kwhKm = p.capacitaBatteria / p.autonomiaReale;
+    var energia = kwhKm * p.prezzoElettrico;
+    var manut = p.manutenzioneAnnua / p.kmAnnui;
+    document.getElementById("dConsumo").textContent = fmt(kwhKm*1000, 2) + " Wh/km";
+    document.getElementById("dEnergia").textContent = fmt(energia, 4) + " €/km";
+    document.getElementById("dManut").textContent = fmt(manut, 4) + " €/km";
+    document.getElementById("dTotScooter").textContent = fmt(energia + manut, 4) + " €/km";
+    document.getElementById("dTotAuto").textContent = fmt((p.consumoAuto/100) * p.prezzoBenzina, 4) + " €/km";
   }
+
+  function readParamForm(){
+    var out = {};
+    PARAM_FIELDS.forEach(function(f){
+      var v = parseFloat(document.getElementById(f[0]).value);
+      out[f[1]] = (isFinite(v) && v > 0) ? v : params[f[1]];
+    });
+    return out;
+  }
+
+  function fillParamForm(){
+    PARAM_FIELDS.forEach(function(f){ document.getElementById(f[0]).value = params[f[1]]; });
+    renderDerived(params);
+  }
+
+  PARAM_FIELDS.forEach(function(f){
+    document.getElementById(f[0]).addEventListener("input", function(){
+      renderDerived(Object.assign({}, params, readParamForm()));
+    });
+  });
+
   document.getElementById("paramForm").addEventListener("submit", function(e){
     e.preventDefault();
-    params.prezzoBenzina = parseFloat(document.getElementById("pBenzina").value) || DEFAULT_PARAMS.prezzoBenzina;
-    params.consumoAuto = parseFloat(document.getElementById("pConsumoAuto").value) || DEFAULT_PARAMS.consumoAuto;
-    params.prezzoElettrico = parseFloat(document.getElementById("pElettrico").value) || DEFAULT_PARAMS.prezzoElettrico;
-    params.consumoScooter = parseFloat(document.getElementById("pConsumoScooter").value) || DEFAULT_PARAMS.consumoScooter;
-    params.costoIniziale = parseFloat(document.getElementById("pCostoIniziale").value) || 0;
-    params.manutenzioneAnnua = parseFloat(document.getElementById("pManutenzione").value) || 0;
-    params.dataAcquisto = document.getElementById("pDataAcquisto").value || DEFAULT_PARAMS.dataAcquisto;
+    params = Object.assign({}, params, readParamForm());
     saveJSON(PARAMS_KEY, params);
     showView("dashboard");
   });
