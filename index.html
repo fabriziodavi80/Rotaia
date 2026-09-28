@@ -89,6 +89,9 @@
   .stat.rust{ border-top-color:var(--rust); }
   .stat .n{ font-size:26px; }
   .stat .l{ font-size:12px; color:var(--ink-60); margin-top:2px; }
+  .stat.stat-wide{ grid-column:1 / -1; display:flex; align-items:center; justify-content:space-between; }
+  .stat.stat-wide .n{ font-size:22px; }
+  .stat.stat-wide .l{ margin-top:0; text-align:right; max-width:60%; }
 
   .card{
     background:var(--surface); border:1px solid var(--ink-10); border-radius:var(--radius);
@@ -132,8 +135,28 @@
   .backup-btns{ display:flex; flex-direction:column; gap:8px; }
   .backup-btns .ghost-btn{ margin-top:0; }
 
+  .routes-wrap{ display:flex; flex-wrap:wrap; gap:8px; }
+  .route-chip{
+    display:inline-flex; align-items:center; gap:8px; padding:9px 10px 9px 12px; border-radius:20px;
+    border:1px solid var(--ink-10); background:var(--surface); color:var(--ink); font-size:13px;
+    font-family:inherit; cursor:pointer;
+  }
+  .route-chip.t{ border-color:var(--teal); }
+  .route-chip.r{ border-color:var(--rust); }
+  .route-del{
+    display:inline-flex; align-items:center; justify-content:center; width:18px; height:18px;
+    border-radius:50%; background:var(--ink-10); color:var(--ink-60); font-size:13px; line-height:1;
+  }
+
+  .history-filters{ display:flex; gap:8px; margin-bottom:12px; }
+  .history-filters select{
+    flex:1; padding:9px 10px; border-radius:8px; border:1px solid var(--ink-10);
+    background:var(--bg); color:var(--ink); font-size:13px; font-family:inherit;
+  }
+
   .trip-row{
     display:flex; align-items:center; gap:12px; padding:12px 0; border-bottom:1px solid var(--ink-10);
+    cursor:pointer;
   }
   .trip-row:last-child{ border-bottom:none; }
   .trip-icon{
@@ -193,6 +216,7 @@
         <div class="row"><span>Ammortamento monopattino</span><span id="beLabel">0%</span></div>
         <div class="bar-track"><div class="bar-fill" id="beBar" style="width:0%"></div></div>
         <div class="be-detail" id="beDateRow" style="display:none;"><span>Data stimata di pareggio</span><span class="mono" id="beDate">—</span></div>
+        <div class="be-detail" id="projRow" style="display:none;"><span>Proiezione risparmio annuo</span><span class="mono" id="projAmount">—</span></div>
         <div class="paid-off" id="paidOffMsg" style="display:none;">Il monopattino si è ripagato — ora è tutto risparmio netto.</div>
         <div class="paid-off" id="soonMsg" style="display:none;"></div>
       </div>
@@ -203,6 +227,7 @@
       <div class="stat rust"><div class="n mono" id="statKmCar">0 km</div><div class="l">Percorsi in auto</div></div>
       <div class="stat"><div class="n mono" id="statMonth">0,00 €</div><div class="l">Risparmiati questo mese</div></div>
       <div class="stat"><div class="n mono" id="statPct">0%</div><div class="l">Utilizzo monopattino (su km)</div></div>
+      <div class="stat stat-wide teal"><div class="n mono" id="statCO2">0 kg</div><div class="l">CO2 risparmiata rispetto all'auto 🌱</div></div>
     </div>
 
     <div class="card">
@@ -226,8 +251,13 @@
   </section>
 
   <section class="view" id="view-add">
+    <div class="card" id="routesCard">
+      <h2>Tragitti salvati</h2>
+      <div class="routes-wrap" id="routesWrap"></div>
+    </div>
+
     <div class="card">
-      <h2>Nuovo spostamento</h2>
+      <h2 id="addTitle">Nuovo spostamento</h2>
       <form id="tripForm">
         <label for="tripDate">Data</label>
         <input type="date" id="tripDate" required>
@@ -241,7 +271,9 @@
         <label for="tripKm">Chilometri percorsi</label>
         <input type="number" id="tripKm" min="0" step="0.1" inputmode="decimal" placeholder="es. 6.5" required>
 
-        <button type="submit" class="primary-btn">Salva spostamento</button>
+        <button type="submit" class="primary-btn" id="tripSubmitBtn">Salva spostamento</button>
+        <button type="button" class="ghost-btn" id="saveRouteBtn">☆ Salva come tragitto</button>
+        <button type="button" class="ghost-btn" id="cancelEditBtn" style="display:none;">Annulla modifica</button>
       </form>
     </div>
   </section>
@@ -249,6 +281,14 @@
   <section class="view" id="view-history">
     <div class="card">
       <h2>Storico spostamenti</h2>
+      <div class="history-filters">
+        <select id="filterMonth" aria-label="Filtra per mese"></select>
+        <select id="filterMezzo" aria-label="Filtra per mezzo">
+          <option value="all">Tutti i mezzi</option>
+          <option value="monopattino">Monopattino</option>
+          <option value="auto">Auto</option>
+        </select>
+      </div>
       <div id="historyList"></div>
     </div>
 
@@ -333,6 +373,9 @@
 
   var TRIPS_KEY = "rotaia_trips_v1";
   var PARAMS_KEY = "rotaia_params_v2";
+  var ROUTES_KEY = "rotaia_routes_v1";
+
+  var CO2_PER_LITRO = 2.31; // kg di CO2 per litro di benzina (valore medio standard)
 
   // Valori di partenza = quelli del foglio Excel "tracker_dst.xlsx"
   var DEFAULT_PARAMS = {
@@ -364,6 +407,9 @@
 
   var params = Object.assign({}, DEFAULT_PARAMS, loadJSON(PARAMS_KEY, {}));
   var trips = loadJSON(TRIPS_KEY, []);
+  var routes = loadJSON(ROUTES_KEY, []);
+  var editingId = null;
+  var historyFilters = { month: "all", mezzo: "all" };
 
   function euro(n){
     var neg = n < 0;
@@ -401,6 +447,19 @@
   // Il foglio Excel confronta il risparmio con il solo costo di acquisto
   function investimentoTotale(){ return params.costoIniziale; }
 
+  // CO2 evitata (o persa) per spostamento, stessa logica di tripSaving ma sui litri di benzina
+  function tripCO2(t){
+    var litri = t.km * (params.consumoAuto/100);
+    var co2 = litri * CO2_PER_LITRO;
+    return t.mezzo === "monopattino" ? co2 : -co2;
+  }
+  function fmtCO2(kg){
+    var neg = kg < 0;
+    var v = Math.abs(kg);
+    var s = v >= 100 ? Math.round(v).toString() : (Math.round(v*10)/10).toString().replace(".", ",");
+    return (neg ? "−" : "") + s + " kg";
+  }
+
   // Giorni distinti con almeno uno spostamento registrato (come il foglio Excel corretto)
   function giorniRegistrati(){
     var set = {};
@@ -431,10 +490,24 @@
     if(name==="dashboard") renderDashboard();
     if(name==="history") renderHistory();
     if(name==="params") fillParamForm();
+    if(name==="add") renderRoutes();
   }
   document.querySelectorAll("nav.bottom button").forEach(function(b){
-    b.addEventListener("click", function(){ showView(b.getAttribute("data-view")); });
+    b.addEventListener("click", function(){
+      var v = b.getAttribute("data-view");
+      if(v === "add") resetAddForm();
+      showView(v);
+    });
   });
+
+  function initialView(){
+    try{
+      var qs = new URLSearchParams(window.location.search);
+      var v = qs.get("view");
+      if(views.indexOf(v) >= 0) return v;
+    }catch(e){}
+    return "dashboard";
+  }
 
   // ---------- Dashboard ----------
   var MONTHS = ["gen","feb","mar","apr","mag","giu","lug","ago","set","ott","nov","dic"];
@@ -458,6 +531,15 @@
     var soonMsg = document.getElementById("soonMsg");
     var giorni = giorniRegistrati();
     var media = giorni > 0 ? totalSaving / giorni : 0;
+
+    var projRow = document.getElementById("projRow");
+    if(giorni > 0){
+      document.getElementById("projAmount").textContent = euro(media * 365);
+      projRow.style.display = "flex";
+    } else {
+      projRow.style.display = "none";
+    }
+
     if(paidOff || media <= 0 || giorni === 0){
       beDateRow.style.display = "none";
       soonMsg.style.display = "none";
@@ -492,6 +574,9 @@
     var usageT = totalKm>0 ? (kmScooter/totalKm*100) : 50;
     document.getElementById("usageT").style.width = usageT.toFixed(0)+"%";
     document.getElementById("usageR").style.width = (100-usageT).toFixed(0)+"%";
+
+    var totalCO2 = trips.reduce(function(s,t){ return s + tripCO2(t); }, 0);
+    document.getElementById("statCO2").textContent = fmtCO2(totalCO2);
 
     renderChart();
     renderCumulativeChart();
@@ -593,36 +678,166 @@
   var mezzoSel = "monopattino";
   var btnScooter = document.getElementById("btnScooter");
   var btnCar = document.getElementById("btnCar");
-  btnScooter.addEventListener("click", function(){ mezzoSel="monopattino"; btnScooter.classList.add("on"); btnCar.classList.remove("on"); });
-  btnCar.addEventListener("click", function(){ mezzoSel="auto"; btnCar.classList.add("on"); btnScooter.classList.remove("on"); });
+  function selectMezzo(m){
+    mezzoSel = m;
+    if(m === "monopattino"){ btnScooter.classList.add("on"); btnCar.classList.remove("on"); }
+    else { btnCar.classList.add("on"); btnScooter.classList.remove("on"); }
+  }
+  btnScooter.addEventListener("click", function(){ selectMezzo("monopattino"); });
+  btnCar.addEventListener("click", function(){ selectMezzo("auto"); });
 
   document.getElementById("tripDate").value = todayStr();
+
+  function resetAddForm(){
+    editingId = null;
+    document.getElementById("addTitle").textContent = "Nuovo spostamento";
+    document.getElementById("tripSubmitBtn").textContent = "Salva spostamento";
+    document.getElementById("cancelEditBtn").style.display = "none";
+    document.getElementById("tripDate").value = todayStr();
+    document.getElementById("tripKm").value = "";
+    selectMezzo("monopattino");
+  }
+
+  function startEdit(id){
+    var t = trips.find(function(x){ return x.id === id; });
+    if(!t) return;
+    editingId = id;
+    document.getElementById("tripDate").value = t.date;
+    document.getElementById("tripKm").value = t.km;
+    selectMezzo(t.mezzo);
+    document.getElementById("addTitle").textContent = "Modifica spostamento";
+    document.getElementById("tripSubmitBtn").textContent = "Salva modifiche";
+    document.getElementById("cancelEditBtn").style.display = "block";
+    showView("add");
+  }
+
+  document.getElementById("cancelEditBtn").addEventListener("click", function(){
+    resetAddForm();
+    showView("history");
+  });
 
   document.getElementById("tripForm").addEventListener("submit", function(e){
     e.preventDefault();
     var date = document.getElementById("tripDate").value || todayStr();
     var km = parseFloat(document.getElementById("tripKm").value);
     if(!km || km<=0) return;
-    trips.push({ id: Date.now()+"-"+Math.random().toString(36).slice(2,7), date: date, mezzo: mezzoSel, km: km });
+    if(editingId){
+      var t = trips.find(function(x){ return x.id === editingId; });
+      if(t){ t.date = date; t.mezzo = mezzoSel; t.km = km; }
+    } else {
+      trips.push({ id: Date.now()+"-"+Math.random().toString(36).slice(2,7), date: date, mezzo: mezzoSel, km: km });
+    }
     trips.sort(function(a,b){ return a.date < b.date ? 1 : -1; });
     saveJSON(TRIPS_KEY, trips);
-    document.getElementById("tripKm").value = "";
+    resetAddForm();
     showView("dashboard");
   });
 
+  // ---------- Tragitti salvati ----------
+  function renderRoutes(){
+    var wrap = document.getElementById("routesWrap");
+    if(routes.length === 0){
+      wrap.innerHTML = '<div class="param-note">Nessun tragitto salvato. Compila i campi sotto e tocca "Salva come tragitto" per crearne uno che potrai registrare con un tocco.</div>';
+      return;
+    }
+    var html = "";
+    routes.forEach(function(r){
+      var isScooter = r.mezzo === "monopattino";
+      html += '<button type="button" class="route-chip '+(isScooter?"t":"r")+'" data-id="'+r.id+'">'
+        + (isScooter ? "🛴" : "🚗") + ' ' + r.label + ' · ' + r.km.toString().replace(".", ",") + ' km'
+        + '<span class="route-del" data-id="'+r.id+'">×</span>'
+        + '</button>';
+    });
+    wrap.innerHTML = html;
+    wrap.querySelectorAll(".route-chip").forEach(function(chip){
+      chip.addEventListener("click", function(e){
+        if(e.target.classList.contains("route-del")){
+          e.stopPropagation();
+          routes = routes.filter(function(r){ return r.id !== e.target.getAttribute("data-id"); });
+          saveJSON(ROUTES_KEY, routes);
+          renderRoutes();
+          return;
+        }
+        var r = routes.find(function(x){ return x.id === chip.getAttribute("data-id"); });
+        if(!r) return;
+        trips.push({ id: Date.now()+"-"+Math.random().toString(36).slice(2,7), date: todayStr(), mezzo: r.mezzo, km: r.km });
+        trips.sort(function(a,b){ return a.date < b.date ? 1 : -1; });
+        saveJSON(TRIPS_KEY, trips);
+        showView("dashboard");
+      });
+    });
+  }
+
+  document.getElementById("saveRouteBtn").addEventListener("click", function(){
+    var km = parseFloat(document.getElementById("tripKm").value);
+    if(!km || km <= 0){ alert("Inserisci prima i chilometri per salvare il tragitto."); return; }
+    var label = prompt("Nome del tragitto (es. Casa-lavoro):", "");
+    if(label === null) return;
+    label = label.trim() || "Tragitto";
+    routes.push({ id: Date.now()+"-"+Math.random().toString(36).slice(2,7), label: label, mezzo: mezzoSel, km: km });
+    saveJSON(ROUTES_KEY, routes);
+    renderRoutes();
+  });
+
   // ---------- History ----------
+  function monthOptions(){
+    var set = {};
+    trips.forEach(function(t){ set[t.date.slice(0,7)] = true; });
+    return Object.keys(set).sort().reverse();
+  }
+  function monthLabel(key){
+    var parts = key.split("-");
+    var d = new Date(parseInt(parts[0],10), parseInt(parts[1],10)-1, 1);
+    var s = d.toLocaleDateString("it-IT", { month:"long", year:"numeric" });
+    return s.charAt(0).toUpperCase() + s.slice(1);
+  }
+  function fillMonthFilter(){
+    var sel = document.getElementById("filterMonth");
+    var months = monthOptions();
+    var html = '<option value="all">Tutti i mesi</option>';
+    months.forEach(function(m){ html += '<option value="'+m+'">'+monthLabel(m)+'</option>'; });
+    sel.innerHTML = html;
+    if(months.indexOf(historyFilters.month) < 0) historyFilters.month = "all";
+    sel.value = historyFilters.month;
+  }
+  function filteredTrips(){
+    return trips.filter(function(t){
+      if(historyFilters.month !== "all" && t.date.slice(0,7) !== historyFilters.month) return false;
+      if(historyFilters.mezzo !== "all" && t.mezzo !== historyFilters.mezzo) return false;
+      return true;
+    });
+  }
+  document.getElementById("filterMonth").addEventListener("change", function(){
+    historyFilters.month = this.value;
+    renderHistoryList();
+  });
+  document.getElementById("filterMezzo").addEventListener("change", function(){
+    historyFilters.mezzo = this.value;
+    renderHistoryList();
+  });
+
   function renderHistory(){
+    fillMonthFilter();
+    renderHistoryList();
+  }
+
+  function renderHistoryList(){
     var list = document.getElementById("historyList");
     if(trips.length===0){
       list.innerHTML = '<div class="empty-state">Ancora nessuno spostamento registrato.</div>';
       return;
     }
+    var shown = filteredTrips();
+    if(shown.length===0){
+      list.innerHTML = '<div class="empty-state">Nessuno spostamento per questo filtro.</div>';
+      return;
+    }
     var html = "";
-    trips.forEach(function(t){
+    shown.forEach(function(t){
       var isScooter = t.mezzo==="monopattino";
       var saving = tripSaving(t);
       var dateFmt = new Date(t.date+"T00:00:00").toLocaleDateString("it-IT",{day:"numeric",month:"short"});
-      html += '<div class="trip-row">'
+      html += '<div class="trip-row" data-id="'+t.id+'">'
         + '<div class="trip-icon '+(isScooter?"t":"r")+'">'
         + (isScooter
             ? '<svg viewBox="0 0 24 24" fill="none" stroke="var(--teal-ink)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="6" cy="18" r="2.2"/><circle cx="17" cy="18" r="2.2"/><path d="M8 18h6l3-9h2M11 18l3-9M6 9h4"/></svg>'
@@ -635,8 +850,15 @@
         + '</div>';
     });
     list.innerHTML = html;
+    list.querySelectorAll(".trip-row").forEach(function(row){
+      row.addEventListener("click", function(e){
+        if(e.target.closest(".trip-del")) return;
+        startEdit(row.getAttribute("data-id"));
+      });
+    });
     list.querySelectorAll(".trip-del").forEach(function(btn){
-      btn.addEventListener("click", function(){
+      btn.addEventListener("click", function(e){
+        e.stopPropagation();
         trips = trips.filter(function(t){ return t.id !== btn.getAttribute("data-id"); });
         saveJSON(TRIPS_KEY, trips);
         renderHistory();
@@ -789,7 +1011,7 @@
   });
 
   // ---------- Init ----------
-  renderDashboard();
+  showView(initialView());
 
   if("serviceWorker" in navigator){
     window.addEventListener("load", function(){
