@@ -123,6 +123,19 @@
     padding:16px; margin-bottom:14px;
   }
   .card h2{ margin:0 0 12px; font-size:15px; font-weight:600; }
+
+  details.card{ padding:0; }
+  details.card > summary{
+    list-style:none; cursor:pointer; padding:16px; font-size:15px; font-weight:600;
+    display:flex; justify-content:space-between; align-items:center; color:var(--ink);
+  }
+  details.card > summary::-webkit-details-marker{ display:none; }
+  details.card > summary::after{
+    content:"▸"; color:var(--ink-60); font-size:12px; margin-left:10px; flex-shrink:0;
+    transition:transform .2s ease;
+  }
+  details.card[open] > summary::after{ transform:rotate(90deg); }
+  details.card > .details-body{ padding:0 16px 16px; }
   .usage-bar{ display:flex; height:14px; border-radius:7px; overflow:hidden; background:var(--ink-10); }
   .usage-bar .seg-t{ background:var(--teal); }
   .usage-bar .seg-r{ background:var(--rust); }
@@ -149,6 +162,9 @@
     background:var(--bg); color:var(--ink); font-size:15px; font-family:inherit;
   }
   input:focus, select:focus, button:focus-visible{ outline:2px solid var(--teal); outline-offset:1px; }
+  input.invalid{ border-color:var(--rust); }
+  .field-error{ font-size:12px; color:var(--rust-ink); margin-top:5px; display:none; }
+  .field-error.show{ display:block; }
   .seg{ display:flex; gap:8px; }
   .seg button{
     flex:1; padding:12px; border-radius:8px; border:1px solid var(--ink-10); background:var(--surface);
@@ -231,6 +247,17 @@
   nav.bottom button.add-btn{ color:var(--ink); }
   nav.bottom button.add-btn.active{ color:var(--teal); }
 
+  .toast{
+    position:fixed; left:50%; bottom:calc(84px + env(safe-area-inset-bottom,0px));
+    transform:translateX(-50%) translateY(12px);
+    background:var(--surface); border:1px solid var(--teal); color:var(--ink);
+    padding:10px 18px; border-radius:20px; font-size:13px; font-weight:600;
+    box-shadow:0 4px 18px rgba(0,0,0,.35); opacity:0; pointer-events:none;
+    transition:opacity .25s ease, transform .25s ease; z-index:20; max-width:80%;
+    text-align:center;
+  }
+  .toast.show{ opacity:1; transform:translateX(-50%) translateY(0); }
+
   @media (prefers-reduced-motion: reduce){ *{ transition:none !important; } }
 </style>
 </head>
@@ -289,23 +316,27 @@
     </div>
 
     <div class="card">
-      <h2>Andamento per giorno della settimana</h2>
-      <div id="weekdayWrap"></div>
-      <div class="usage-legend">
-        <span><span class="dot t"></span>Monopattino</span>
-        <span><span class="dot r"></span>Auto</span>
-      </div>
-    </div>
-
-    <div class="card">
       <h2>Risparmio mensile</h2>
       <div class="chart-wrap" id="chartWrap"></div>
     </div>
 
-    <div class="card">
-      <h2>Andamento risparmio cumulato</h2>
-      <div class="chart-wrap" id="cumChartWrap"></div>
-    </div>
+    <details class="card">
+      <summary>Andamento per giorno della settimana</summary>
+      <div class="details-body">
+        <div id="weekdayWrap"></div>
+        <div class="usage-legend">
+          <span><span class="dot t"></span>Monopattino</span>
+          <span><span class="dot r"></span>Auto</span>
+        </div>
+      </div>
+    </details>
+
+    <details class="card">
+      <summary>Andamento risparmio cumulato</summary>
+      <div class="details-body">
+        <div class="chart-wrap" id="cumChartWrap"></div>
+      </div>
+    </details>
   </section>
 
   <section class="view" id="view-add">
@@ -316,9 +347,10 @@
 
     <div class="card">
       <h2 id="addTitle">Nuovo spostamento</h2>
-      <form id="tripForm">
+      <form id="tripForm" novalidate>
         <label for="tripDate">Data</label>
-        <input type="date" id="tripDate" required>
+        <input type="date" id="tripDate">
+        <div class="field-error" id="tripDateError"></div>
 
         <label>Mezzo</label>
         <div class="seg">
@@ -327,7 +359,8 @@
         </div>
 
         <label for="tripKm">Chilometri percorsi</label>
-        <input type="number" id="tripKm" min="0" step="0.1" inputmode="decimal" placeholder="es. 6.5" required>
+        <input type="number" id="tripKm" min="0" step="0.1" inputmode="decimal" placeholder="es. 6.5">
+        <div class="field-error" id="tripKmError"></div>
 
         <button type="submit" class="primary-btn" id="tripSubmitBtn">Salva spostamento</button>
         <button type="button" class="ghost-btn" id="saveRouteBtn">☆ Salva come tragitto</button>
@@ -366,7 +399,7 @@
   <section class="view" id="view-params">
     <div class="card">
       <h2>Parametri di calcolo</h2>
-      <form id="paramForm">
+      <form id="paramForm" novalidate>
         <fieldset>
           <label for="pBenzina">Prezzo benzina (€/litro)</label>
           <input type="number" id="pBenzina" min="0" step="0.01" inputmode="decimal">
@@ -390,7 +423,7 @@
           <input type="number" id="pManutenzione" min="0" step="1" inputmode="decimal">
 
           <label for="pKmAnnui">Km annui stimati (per ripartire la manutenzione)</label>
-          <input type="number" id="pKmAnnui" min="1" step="50" inputmode="decimal">
+          <input type="number" id="pKmAnnui" min="1" step="1" inputmode="decimal">
 
           <label for="pObiettivo">Obiettivo di risparmio mensile (€, 0 = disattivato)</label>
           <input type="number" id="pObiettivo" min="0" step="1" inputmode="decimal">
@@ -437,6 +470,8 @@
     Parametri
   </button>
 </nav>
+
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
 
 <script>
 (function(){
@@ -490,6 +525,29 @@
     n = Math.abs(n);
     var s = n.toFixed(2).replace(".", ",");
     return (neg?"-":"") + s + " €";
+  }
+
+  var toastTimer = null;
+  function showToast(msg){
+    var t = document.getElementById("toast");
+    if(!t) return;
+    t.textContent = msg;
+    t.classList.add("show");
+    if(toastTimer) clearTimeout(toastTimer);
+    toastTimer = setTimeout(function(){ t.classList.remove("show"); }, 2200);
+  }
+
+  function setFieldError(id, msg){
+    var input = document.getElementById(id);
+    if(input) input.classList.add("invalid");
+    var errEl = document.getElementById(id+"Error");
+    if(errEl){ errEl.textContent = msg; errEl.classList.add("show"); }
+  }
+  function clearFieldError(id){
+    var input = document.getElementById(id);
+    if(input) input.classList.remove("invalid");
+    var errEl = document.getElementById(id+"Error");
+    if(errEl){ errEl.textContent = ""; errEl.classList.remove("show"); }
   }
 
   // Costi al km (identici alle celle C15:C19 del foglio Parametri)
@@ -852,6 +910,8 @@
     document.getElementById("tripDate").value = todayStr();
     document.getElementById("tripKm").value = "";
     selectMezzo("monopattino");
+    clearFieldError("tripDate");
+    clearFieldError("tripKm");
   }
 
   function startEdit(id){
@@ -864,6 +924,8 @@
     document.getElementById("addTitle").textContent = "Modifica spostamento";
     document.getElementById("tripSubmitBtn").textContent = "Salva modifiche";
     document.getElementById("cancelEditBtn").style.display = "block";
+    clearFieldError("tripDate");
+    clearFieldError("tripKm");
     showView("add");
   }
 
@@ -879,9 +941,25 @@
 
   document.getElementById("tripForm").addEventListener("submit", function(e){
     e.preventDefault();
-    var date = document.getElementById("tripDate").value || todayStr();
-    var km = parseFloat(document.getElementById("tripKm").value);
-    if(!km || km<=0) return;
+    clearFieldError("tripDate");
+    clearFieldError("tripKm");
+
+    var dateRaw = document.getElementById("tripDate").value;
+    var kmRaw = document.getElementById("tripKm").value;
+    var km = parseFloat(kmRaw);
+    var valid = true;
+    if(!dateRaw){
+      setFieldError("tripDate", "Inserisci una data.");
+      valid = false;
+    }
+    if(!kmRaw || !isFinite(km) || km <= 0){
+      setFieldError("tripKm", "Inserisci i chilometri percorsi (es. 6.5).");
+      valid = false;
+    }
+    if(!valid) return;
+
+    var date = dateRaw || todayStr();
+    var wasEditing = !!editingId;
     if(editingId){
       var t = trips.find(function(x){ return x.id === editingId; });
       if(t){ t.date = date; t.mezzo = mezzoSel; t.km = km; }
@@ -892,6 +970,7 @@
     saveJSON(TRIPS_KEY, trips);
     resetAddForm();
     showView("dashboard");
+    showToast(wasEditing ? "✓ Spostamento modificato" : "✓ Spostamento salvato");
   });
 
   // ---------- Tragitti salvati ----------
@@ -925,6 +1004,7 @@
         trips.sort(function(a,b){ return a.date < b.date ? 1 : -1; });
         saveJSON(TRIPS_KEY, trips);
         showView("dashboard");
+        showToast("✓ Spostamento salvato");
       });
     });
   }
@@ -1021,9 +1101,12 @@
     list.querySelectorAll(".trip-del").forEach(function(btn){
       btn.addEventListener("click", function(e){
         e.stopPropagation();
+        if(!confirm("Eliminare questo spostamento?")) return;
         trips = trips.filter(function(t){ return t.id !== btn.getAttribute("data-id"); });
         saveJSON(TRIPS_KEY, trips);
         renderHistory();
+        renderDashboard();
+        showToast("Spostamento eliminato");
       });
     });
   }
@@ -1215,6 +1298,7 @@
     params.obiettivoMensile = (isFinite(goalVal) && goalVal >= 0) ? goalVal : 0;
     saveJSON(PARAMS_KEY, params);
     showView("dashboard");
+    showToast("✓ Parametri salvati");
   });
 
   document.getElementById("resetBtn").addEventListener("click", function(){

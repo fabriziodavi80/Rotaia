@@ -1,4 +1,4 @@
-var CACHE_NAME = "rotaia-cache-v2";
+var CACHE_NAME = "rotaia-cache-v3";
 var CORE_ASSETS = [
   "./",
   "./index.html",
@@ -29,7 +29,28 @@ self.addEventListener("fetch", function(e){
   if(e.request.method !== "GET") return;
   var url = new URL(e.request.url);
 
-  // Pagina stessa dell'app: cache-first, aggiorna in background quando c'è rete
+  // Pagina dell'app (navigazione): network-first, così le modifiche si vedono
+  // subito quando c'è rete; la cache serve solo come rete di sicurezza offline.
+  var isPage = e.request.mode === "navigate"
+    || (url.origin === self.location.origin && (url.pathname.endsWith("/") || url.pathname.endsWith("index.html")));
+  if(isPage){
+    e.respondWith(
+      fetch(e.request).then(function(networkResp){
+        if(networkResp && networkResp.ok){
+          var copy = networkResp.clone();
+          caches.open(CACHE_NAME).then(function(cache){ cache.put(e.request, copy); });
+        }
+        return networkResp;
+      }).catch(function(){
+        return caches.match(e.request).then(function(cached){
+          return cached || caches.match("./index.html");
+        });
+      })
+    );
+    return;
+  }
+
+  // Altre risorse stesse origine (icone, manifest): cache-first, aggiorna in background
   if(url.origin === self.location.origin){
     e.respondWith(
       caches.match(e.request).then(function(cached){
