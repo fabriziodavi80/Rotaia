@@ -120,6 +120,25 @@
   .stat.stat-wide .n{ font-size:22px; }
   .stat.stat-wide .l{ margin-top:0; text-align:right; max-width:60%; }
 
+  .bar-fill.low{ background:var(--gold); box-shadow:0 0 10px var(--gold-soft); }
+  .bar-fill.crit{ background:var(--rust); box-shadow:0 0 10px var(--rust-glow); }
+
+  .mini-details > summary{
+    list-style:none; cursor:pointer; font-size:13px; color:var(--ink-60);
+    display:flex; align-items:center; gap:6px;
+  }
+  .mini-details > summary::-webkit-details-marker{ display:none; }
+  .mini-details > summary::after{ content:"▸"; font-size:11px; transition:transform .2s ease; }
+  .mini-details[open] > summary::after{ transform:rotate(90deg); }
+
+  .charge-row{
+    display:flex; align-items:center; justify-content:space-between; gap:10px;
+    padding:10px 0; border-bottom:1px solid var(--ink-10); cursor:pointer;
+  }
+  .charge-row:last-child{ border-bottom:none; }
+  .charge-row .c-main{ font-size:13px; font-weight:500; }
+  .charge-row .c-sub{ font-size:12px; color:var(--ink-60); margin-top:2px; }
+
   .card{
     background:var(--surface); border:1px solid var(--ink-10); border-radius:var(--radius);
     padding:16px; margin-bottom:14px;
@@ -299,6 +318,33 @@
       <div class="stat"><div class="n mono" id="statPct">0%</div><div class="l">Utilizzo monopattino (su km)</div></div>
       <div class="stat stat-wide teal"><div class="n mono" id="statCO2">0 kg</div><div class="l">CO2 risparmiata rispetto all'auto 🌱</div></div>
       <div class="stat stat-wide teal"><div class="n mono" id="statStreak">0 giorni</div><div class="l">Serie in monopattino 🔥</div></div>
+    </div>
+
+    <div class="card" id="batteryCard">
+      <h2>🔋 Batteria monopattino</h2>
+      <div class="bar-track"><div class="bar-fill" id="battBar" style="width:0%"></div></div>
+      <div class="be-detail"><span>Da ultima ricarica</span><span class="mono" id="battKmSince">—</span></div>
+      <div class="be-detail"><span>Autonomia reale</span><span class="mono" id="battAutonomia">—</span></div>
+      <div class="be-detail" id="battRemainRow" style="display:none;"><span>Km stimati alla prossima ricarica</span><span class="mono" id="battRemain">—</span></div>
+      <div class="param-note" id="battNote"></div>
+      <button type="button" class="ghost-btn" id="syncAutonomiaBtn" style="display:none;"></button>
+      <button type="button" class="ghost-btn" id="toggleChargeFormBtn">🔌 Registra ricarica</button>
+      <form id="chargeForm" novalidate style="display:none; margin-top:12px;">
+        <label for="chargeDate">Data ricarica</label>
+        <input type="date" id="chargeDate">
+        <div class="field-error" id="chargeDateError"></div>
+
+        <label for="chargeKm">Km totali sul contachilometri</label>
+        <input type="number" id="chargeKm" min="0" step="1" inputmode="decimal" placeholder="es. 194">
+        <div class="field-error" id="chargeKmError"></div>
+
+        <button type="submit" class="primary-btn" id="chargeSubmitBtn">Salva ricarica</button>
+        <button type="button" class="ghost-btn" id="cancelChargeEditBtn" style="display:none;">Annulla modifica</button>
+      </form>
+      <details class="mini-details" style="margin-top:14px;">
+        <summary>Storico ricariche</summary>
+        <div id="chargeHistoryList" style="margin-top:8px;"></div>
+      </details>
     </div>
 
     <div class="card" id="goalCard" style="display:none;">
@@ -483,6 +529,7 @@
   var TRIPS_KEY = "rotaia_trips_v1";
   var PARAMS_KEY = "rotaia_params_v2";
   var ROUTES_KEY = "rotaia_routes_v1";
+  var CHARGES_KEY = "rotaia_charges_v1";
   var THEME_KEY = "rotaia_theme_v1";
   var BACKUP_KEY = "rotaia_last_backup_v1";
 
@@ -520,7 +567,9 @@
   var params = Object.assign({}, DEFAULT_PARAMS, loadJSON(PARAMS_KEY, {}));
   var trips = loadJSON(TRIPS_KEY, []);
   var routes = loadJSON(ROUTES_KEY, []);
+  var charges = loadJSON(CHARGES_KEY, []);
   var editingId = null;
+  var editingChargeId = null;
   var historyFilters = { month: "all", mezzo: "all" };
 
   function euro(n){
@@ -774,6 +823,7 @@
     renderChart();
     renderCumulativeChart();
     renderWeekdayChart();
+    renderBattery();
   }
 
   function fmtKm(n){
@@ -894,6 +944,228 @@
     });
     wrap.innerHTML = html;
   }
+
+  // ---------- Batteria e ricariche ----------
+  // Ogni ricarica registra i km TOTALI letti sul contachilometri del monopattino
+  // al momento in cui viene messo in carica (come mostrato sul suo display).
+  function chargesSorted(){
+    return charges.slice().sort(function(a,b){
+      if(a.date !== b.date) return a.date < b.date ? -1 : 1;
+      return a.km - b.km;
+    });
+  }
+  // Km percorsi in ciascun ciclo di ricarica (differenza tra una ricarica e la precedente)
+  function chargeCycles(){
+    var sorted = chargesSorted();
+    var out = [];
+    for(var i=1;i<sorted.length;i++){
+      var delta = sorted[i].km - sorted[i-1].km;
+      if(delta > 0) out.push(delta);
+    }
+    return out;
+  }
+  // Autonomia reale calcolata dallo storico (media dei cicli); null se non ci sono ancora abbastanza dati
+  function autonomiaCalcolata(){
+    var cycles = chargeCycles();
+    if(cycles.length === 0) return null;
+    return cycles.reduce(function(s,v){ return s+v; }, 0) / cycles.length;
+  }
+  function lastCharge(){
+    var sorted = chargesSorted();
+    return sorted.length ? sorted[sorted.length-1] : null;
+  }
+  // Km percorsi in monopattino dopo l'ultima ricarica registrata
+  function kmDaUltimaRicarica(){
+    var lc = lastCharge();
+    if(!lc) return null;
+    return trips.filter(function(t){ return t.mezzo === "monopattino" && t.date > lc.date; })
+      .reduce(function(s,t){ return s + t.km; }, 0);
+  }
+
+  function renderBattery(){
+    var lc = lastCharge();
+    var autReale = autonomiaCalcolata();
+    var bar = document.getElementById("battBar");
+    var noteEl = document.getElementById("battNote");
+    var remainRow = document.getElementById("battRemainRow");
+    var syncBtn = document.getElementById("syncAutonomiaBtn");
+
+    if(!lc){
+      document.getElementById("battKmSince").textContent = "—";
+      document.getElementById("battAutonomia").textContent = fmtKm(params.autonomiaReale) + " (dichiarata)";
+      remainRow.style.display = "none";
+      bar.style.width = "0%";
+      bar.className = "bar-fill";
+      noteEl.textContent = "Registra la prima ricarica per iniziare a tracciare l'autonomia reale del tuo monopattino.";
+      syncBtn.style.display = "none";
+    } else {
+      var kmSince = kmDaUltimaRicarica();
+      var autStimata = autReale !== null ? autReale : params.autonomiaReale;
+      document.getElementById("battKmSince").textContent = fmtKm(kmSince);
+      document.getElementById("battAutonomia").textContent = autReale !== null
+        ? fmtKm(autReale) + " (" + chargeCycles().length + (chargeCycles().length===1 ? " ciclo registrato)" : " cicli registrati)")
+        : fmtKm(params.autonomiaReale) + " (dichiarata, serve un'altra ricarica per calcolarla)";
+
+      remainRow.style.display = "flex";
+      var remain = autStimata - kmSince;
+      document.getElementById("battRemain").textContent = remain >= 0 ? fmtKm(remain) : "0 km";
+
+      var pct = autStimata > 0 ? Math.max(0, Math.min(100, (1 - kmSince/autStimata) * 100)) : 0;
+      bar.style.width = pct.toFixed(0) + "%";
+      bar.className = "bar-fill" + (pct <= 15 ? " crit" : pct <= 35 ? " low" : "");
+
+      if(remain < 0){
+        noteEl.textContent = "⚠️ Hai già superato l'autonomia media stimata: potresti restare a piedi, ricarica appena puoi.";
+      } else if(pct <= 15){
+        noteEl.textContent = "Batteria quasi scarica: pianifica una ricarica a breve.";
+      } else {
+        noteEl.textContent = "";
+      }
+
+      if(autReale !== null && Math.abs(autReale - params.autonomiaReale) >= 1){
+        syncBtn.style.display = "block";
+        syncBtn.textContent = "Aggiorna parametro autonomia (" + Math.round(params.autonomiaReale) + " → " + Math.round(autReale) + " km)";
+      } else {
+        syncBtn.style.display = "none";
+      }
+    }
+    renderChargeHistory();
+  }
+
+  document.getElementById("syncAutonomiaBtn").addEventListener("click", function(){
+    var autReale = autonomiaCalcolata();
+    if(autReale === null) return;
+    params.autonomiaReale = Math.round(autReale * 10) / 10;
+    saveJSON(PARAMS_KEY, params);
+    renderDashboard();
+    showToast("✓ Autonomia aggiornata: costi ricalcolati");
+  });
+
+  function renderChargeHistory(){
+    var wrap = document.getElementById("chargeHistoryList");
+    if(!wrap) return;
+    if(charges.length === 0){
+      wrap.innerHTML = '<div class="param-note">Nessuna ricarica registrata.</div>';
+      return;
+    }
+    var asc = chargesSorted();
+    var deltaById = {};
+    for(var i=1;i<asc.length;i++){ deltaById[asc[i].id] = asc[i].km - asc[i-1].km; }
+    var desc = asc.slice().reverse();
+    var html = "";
+    desc.forEach(function(c){
+      var delta = deltaById[c.id];
+      var dateFmt = new Date(c.date+"T00:00:00").toLocaleDateString("it-IT",{day:"numeric",month:"short",year:"numeric"});
+      html += '<div class="charge-row" data-id="'+c.id+'">'
+        + '<div><div class="c-main">'+dateFmt+'</div><div class="c-sub">'+fmtKm(c.km)+' totali'+(delta!==undefined ? ' · +'+fmtKm(delta)+' dalla precedente' : '')+'</div></div>'
+        + '<button class="trip-del" data-id="'+c.id+'" aria-label="Elimina">×</button>'
+        + '</div>';
+    });
+    wrap.innerHTML = html;
+    wrap.querySelectorAll(".charge-row").forEach(function(row){
+      row.addEventListener("click", function(e){
+        if(e.target.closest(".trip-del")) return;
+        startEditCharge(row.getAttribute("data-id"));
+      });
+    });
+    wrap.querySelectorAll(".trip-del").forEach(function(btn){
+      btn.addEventListener("click", function(e){
+        e.stopPropagation();
+        if(!confirm("Eliminare questa ricarica?")) return;
+        charges = charges.filter(function(c){ return c.id !== btn.getAttribute("data-id"); });
+        saveJSON(CHARGES_KEY, charges);
+        renderBattery();
+        showToast("Ricarica eliminata");
+      });
+    });
+  }
+
+  function resetChargeForm(){
+    editingChargeId = null;
+    document.getElementById("chargeSubmitBtn").textContent = "Salva ricarica";
+    document.getElementById("cancelChargeEditBtn").style.display = "none";
+    document.getElementById("chargeDate").value = todayStr();
+    document.getElementById("chargeKm").value = "";
+    clearFieldError("chargeDate");
+    clearFieldError("chargeKm");
+  }
+
+  function startEditCharge(id){
+    var c = charges.find(function(x){ return x.id === id; });
+    if(!c) return;
+    editingChargeId = id;
+    document.getElementById("chargeDate").value = c.date;
+    document.getElementById("chargeKm").value = c.km;
+    document.getElementById("chargeSubmitBtn").textContent = "Salva modifiche";
+    document.getElementById("cancelChargeEditBtn").style.display = "block";
+    clearFieldError("chargeDate");
+    clearFieldError("chargeKm");
+    var form = document.getElementById("chargeForm");
+    form.style.display = "block";
+    form.scrollIntoView({ behavior:"smooth", block:"nearest" });
+  }
+
+  document.getElementById("toggleChargeFormBtn").addEventListener("click", function(){
+    var form = document.getElementById("chargeForm");
+    var show = form.style.display === "none";
+    if(show){ resetChargeForm(); }
+    form.style.display = show ? "block" : "none";
+    if(show) document.getElementById("chargeKm").focus();
+  });
+
+  document.getElementById("cancelChargeEditBtn").addEventListener("click", function(){
+    resetChargeForm();
+    document.getElementById("chargeForm").style.display = "none";
+  });
+
+  document.getElementById("chargeForm").addEventListener("submit", function(e){
+    e.preventDefault();
+    clearFieldError("chargeDate");
+    clearFieldError("chargeKm");
+
+    var dateRaw = document.getElementById("chargeDate").value;
+    var kmRaw = document.getElementById("chargeKm").value;
+    var km = parseFloat(kmRaw);
+    var valid = true;
+    if(!dateRaw){
+      setFieldError("chargeDate", "Inserisci una data.");
+      valid = false;
+    }
+    if(!kmRaw || !isFinite(km) || km < 0){
+      setFieldError("chargeKm", "Inserisci i km totali letti sul monopattino.");
+      valid = false;
+    }
+    // L'odometro del monopattino è sempre crescente: controlla la coerenza con le altre ricariche
+    if(valid){
+      var others = charges.filter(function(c){ return c.id !== editingChargeId; });
+      var lower = others.filter(function(c){ return c.date <= dateRaw; })
+        .reduce(function(max,c){ return c.km > max ? c.km : max; }, -Infinity);
+      var higher = others.filter(function(c){ return c.date > dateRaw; })
+        .reduce(function(min,c){ return c.km < min ? c.km : min; }, Infinity);
+      if(lower !== -Infinity && km < lower){
+        setFieldError("chargeKm", "Dev'essere almeno " + fmtKm(lower) + " (ricarica precedente).");
+        valid = false;
+      } else if(higher !== Infinity && km > higher){
+        setFieldError("chargeKm", "Dev'essere al massimo " + fmtKm(higher) + " (ricarica successiva già registrata).");
+        valid = false;
+      }
+    }
+    if(!valid) return;
+
+    var date = dateRaw || todayStr();
+    var wasEditing = !!editingChargeId;
+    if(editingChargeId){
+      var c = charges.find(function(x){ return x.id === editingChargeId; });
+      if(c){ c.date = date; c.km = km; }
+    } else {
+      charges.push({ id: Date.now()+"-"+Math.random().toString(36).slice(2,7), date: date, km: km });
+    }
+    saveJSON(CHARGES_KEY, charges);
+    resetChargeForm();
+    document.getElementById("chargeForm").style.display = "none";
+    renderBattery();
+    showToast(wasEditing ? "✓ Ricarica modificata" : "🔋 Ricarica registrata");
+  });
 
   // ---------- Add trip ----------
   var mezzoSel = "monopattino";
