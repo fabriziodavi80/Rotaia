@@ -139,6 +139,11 @@
   .charge-row .c-main{ font-size:13px; font-weight:500; }
   .charge-row .c-sub{ font-size:12px; color:var(--ink-60); margin-top:2px; }
 
+  .guide-item{ margin-bottom:16px; }
+  .guide-item:last-child{ margin-bottom:0; }
+  .guide-t{ font-size:13px; font-weight:600; margin-bottom:4px; }
+  .guide-d{ font-size:13px; color:var(--ink-60); line-height:1.5; }
+
   .card{
     background:var(--surface); border:1px solid var(--ink-10); border-radius:var(--radius);
     padding:16px; margin-bottom:14px;
@@ -495,8 +500,34 @@
         <div class="derived-row tot r"><span>Auto, costo al km</span><span class="mono" id="dTotAuto">—</span></div>
       </div>
       <div class="param-note">Su percorso collinare l'autonomia reale è molto più bassa di quella dichiarata: conviene verificarla guardando la % di batteria consumata sui tuoi tragitti tipici.</div>
-      <button class="ghost-btn" id="resetBtn">Cancella tutti gli spostamenti</button>
+      <button class="ghost-btn" id="resetBtn">Cancella tutti gli spostamenti e le ricariche</button>
     </div>
+
+    <details class="card">
+      <summary>ℹ️ Guida rapida</summary>
+      <div class="details-body">
+        <div class="guide-item">
+          <div class="guide-t">Risparmio netto vs lordo</div>
+          <div class="guide-d">Il <b>netto</b> è il risparmio reale: per ogni spostamento in monopattino viene aggiunto, per ogni spostamento in auto viene sottratto (perché è un risparmio mancato). Se usi i due mezzi per km simili, il netto resta basso anche se usi molto il monopattino. Il <b>lordo</b> conta solo i km fatti in monopattino, senza sottrarre l'auto: è il numero da guardare se vuoi capire quanto ti sta facendo risparmiare il monopattino di per sé.</div>
+        </div>
+        <div class="guide-item">
+          <div class="guide-t">Autonomia e ricariche</div>
+          <div class="guide-d">Registrando le ricariche (data + km totali letti sul contachilometri), l'app calcola l'autonomia reale come media dei km percorsi tra una ricarica e la successiva. Finché hai registrato una sola ricarica, viene usato il valore "dichiarato" impostato sopra. I km percorsi lo stesso giorno di una ricarica, se registrati dopo di essa, vengono contati a partire dal giorno seguente.</div>
+        </div>
+        <div class="guide-item">
+          <div class="guide-t">Serie monopattino (streak) 🔥</div>
+          <div class="guide-d">Conta i giorni consecutivi, fino a oggi, in cui hai registrato almeno uno spostamento in monopattino. Se oggi non hai ancora registrato nulla, la serie viene calcolata fino a ieri e non si interrompe subito.</div>
+        </div>
+        <div class="guide-item">
+          <div class="guide-t">Obiettivo di risparmio mensile</div>
+          <div class="guide-d">Se impostato sopra a 0€, in dashboard compare una barra di avanzamento con il risparmio netto accumulato nel mese in corso rispetto all'obiettivo.</div>
+        </div>
+        <div class="guide-item">
+          <div class="guide-t">Backup dei dati</div>
+          <div class="guide-d">Tutto è salvato solo su questo dispositivo (nessun account, nessun server). Esporta periodicamente il CSV da Storico, o condividilo direttamente, per non perdere i dati se cambi telefono o cancelli l'app.</div>
+        </div>
+      </div>
+    </details>
   </section>
 
 </main>
@@ -548,9 +579,11 @@
     obiettivoMensile: 0       // 0 = nessun obiettivo impostato
   };
 
+  // Data di oggi nel fuso orario locale (NON usare toISOString: userebbe lo UTC
+  // e nelle prime ore del giorno restituirebbe ancora la data di ieri).
   function todayStr(){
     var d = new Date();
-    return d.toISOString().slice(0,10);
+    return d.getFullYear() + "-" + String(d.getMonth()+1).padStart(2,"0") + "-" + String(d.getDate()).padStart(2,"0");
   }
 
   function loadJSON(key, fallback){
@@ -1581,9 +1614,11 @@
   });
 
   document.getElementById("resetBtn").addEventListener("click", function(){
-    if(confirm("Cancellare tutti gli spostamenti registrati? L'azione non è reversibile.")){
+    if(confirm("Cancellare tutti gli spostamenti e tutte le ricariche registrate? L'azione non è reversibile.")){
       trips = [];
+      charges = [];
       saveJSON(TRIPS_KEY, trips);
+      saveJSON(CHARGES_KEY, charges);
       renderHistory();
       renderDashboard();
     }
