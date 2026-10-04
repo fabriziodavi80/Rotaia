@@ -513,7 +513,7 @@
         <div class="derived-row tot t"><span>Monopattino, costo totale al km</span><span class="mono" id="dTotScooter">—</span></div>
         <div class="derived-row tot r"><span>Auto, costo al km</span><span class="mono" id="dTotAuto">—</span></div>
       </div>
-      <div class="param-note">Su percorso collinare l'autonomia reale è molto più bassa di quella dichiarata: conviene verificarla guardando la % di batteria consumata sui tuoi tragitti tipici.</div>
+      <div class="param-note">Su percorso collinare l'autonomia reale è molto più bassa di quella dichiarata: puoi aggiornarla dalle ricariche registrate o dal consumo misurato con il Bluetooth (scheda Batteria in Dashboard).</div>
       <button class="ghost-btn" id="resetBtn">Cancella tutti gli spostamenti e le ricariche</button>
     </div>
 
@@ -549,8 +549,12 @@
           <div class="guide-d">Con il monopattino acceso e SHU chiusa, «Leggi km dal monopattino» legge il contachilometri e compila i km fatti dall'ultima lettura. La prima volta salva solo il punto di partenza. Se nel frattempo hai registrato spostamenti a mano, togli quei km dal valore proposto. In «Registra ricarica» lo stesso pulsante compila il contachilometri; se leggi con il caricatore collegato, l'app ti propone di registrare la ricarica. La prima lettura richiede l'abbinamento: premi una volta il pulsante di accensione quando l'app lo chiede.</div>
         </div>
         <div class="guide-item">
+          <div class="guide-t">Abbinamento e SHU 🔑</div>
+          <div class="guide-d">Il monopattino ricorda una sola app alla volta. Dopo che hai usato SHU, alla lettura successiva l'app ti chiederà «Abbina ora»: premi una volta il pulsante di accensione e la nuova chiave si salva da sola. A sua volta SHU potrebbe chiederti di riabbinarla. Velocità, regione e gli altri parametri non cambiano mai. Conserva una copia della chiave (Parametri → Monopattino via Bluetooth): se cancelli i dati dell'app o cambi telefono, incollandola eviti un nuovo abbinamento. La pagina diagnostica della batteria ha una sua copia della chiave: prima di usarla, incollale quella dell'app.</div>
+        </div>
+        <div class="guide-item">
           <div class="guide-t">Consumo misurato ⚡</div>
-          <div class="guide-d">A ogni lettura l'app salva anche l'energia rimasta nella batteria. Tra due letture con dei km in mezzo calcola quanti Wh hai consumato per km. Le coppie di letture con una ricarica in mezzo vengono scartate. Dopo almeno 5 km misurati puoi usare questo valore per aggiornare l'autonomia nei Parametri: il calcolo del risparmio resta lo stesso del foglio Excel, cambia solo il dato di partenza. Come nel foglio, non è inclusa la perdita del caricatore (circa 10-15%).</div>
+          <div class="guide-d">A ogni lettura l'app salva anche l'energia rimasta nella batteria. Tra due letture con dei km in mezzo calcola quanti Wh hai consumato per km. Le coppie di letture con una ricarica in mezzo vengono scartate. Dopo almeno 5 km misurati puoi usare questo valore per aggiornare l'autonomia nei Parametri: il calcolo del risparmio resta lo stesso del foglio Excel, cambia solo il dato di partenza. Come nel foglio, non è inclusa la perdita del caricatore (circa 10-15%): sui tuoi numeri vale circa 1 € all'anno, quindi è trascurabile.</div>
         </div>
         <div class="guide-item">
           <div class="guide-t">Serie monopattino (streak) 🔥</div>
@@ -1064,7 +1068,7 @@
 
     if(!lc){
       document.getElementById("battKmSince").textContent = "—";
-      document.getElementById("battAutonomia").textContent = fmtKm(params.autonomiaReale) + " (dichiarata)";
+      document.getElementById("battAutonomia").textContent = fmtKm(params.autonomiaReale) + " (da Parametri)";
       remainRow.style.display = "none";
       bar.style.width = "0%";
       bar.className = "bar-fill";
@@ -1076,7 +1080,7 @@
       document.getElementById("battKmSince").textContent = fmtKm(kmSince);
       document.getElementById("battAutonomia").textContent = autReale !== null
         ? fmtKm(autReale) + " (" + chargeCycles().length + (chargeCycles().length===1 ? " ciclo registrato)" : " cicli registrati)")
-        : fmtKm(params.autonomiaReale) + " (dichiarata, serve un'altra ricarica per calcolarla)";
+        : fmtKm(params.autonomiaReale) + " (da Parametri; dalle ricariche serve un'altra ricarica)";
 
       remainRow.style.display = "flex";
       var remain = autStimata - kmSince;
