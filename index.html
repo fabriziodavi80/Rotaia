@@ -546,7 +546,7 @@
         </div>
         <div class="guide-item">
           <div class="guide-t">Lettura dal monopattino 🛴</div>
-          <div class="guide-d">Con il monopattino acceso e SHU chiusa, «Leggi km dal monopattino» legge il contachilometri e compila i km fatti dall'ultima lettura. La prima volta salva solo il punto di partenza. Se nel frattempo hai registrato spostamenti a mano, togli quei km dal valore proposto. In «Registra ricarica» lo stesso pulsante compila il contachilometri; se leggi con il caricatore collegato, l'app ti propone di registrare la ricarica. La prima lettura richiede l'abbinamento: premi una volta il pulsante di accensione quando l'app lo chiede.</div>
+          <div class="guide-d">Con il monopattino acceso e SHU chiusa, «Leggi km dal monopattino» legge il contachilometri e compila i km fatti dall'ultima lettura. La prima volta salva solo il punto di partenza, perché non c'è ancora un riferimento precedente con cui calcolare la differenza: se hai già percorso km oggi prima di questa prima lettura, il campo km resta vuoto e vanno inseriti a mano (il contachilometri letto li include già). Se nel frattempo hai registrato spostamenti a mano, togli quei km dal valore proposto. In «Registra ricarica» lo stesso pulsante compila il contachilometri; se leggi con il caricatore collegato, l'app ti propone di registrare la ricarica. La prima lettura richiede l'abbinamento: premi una volta il pulsante di accensione quando l'app lo chiede.</div>
         </div>
         <div class="guide-item">
           <div class="guide-t">Abbinamento e SHU 🔑</div>
@@ -1866,7 +1866,9 @@
     var ref = loadJSON(ODO_KEY, null);
     if(!ref || typeof ref.km !== "number"){
       saveJSON(ODO_KEY, { km: r.km, date: todayStr() });
-      setNote("Prima lettura: contachilometri a " + fmtKm(r.km) + ". Da qui in avanti i km si compileranno da soli.");
+      document.getElementById("tripKm").value = "";
+      clearFieldError("tripKm");
+      setNote("Prima lettura: contachilometri impostato a " + fmtKm(r.km) + ". Da qui in avanti i km si compileranno da soli. Se hai già percorso dei km oggi prima di questa lettura, il contachilometri letto li include già: inseriscili qui sotto e tocca «Salva spostamento» per non perderli.");
       return;
     }
     var delta = Math.round((r.km - ref.km) * 10) / 10;
