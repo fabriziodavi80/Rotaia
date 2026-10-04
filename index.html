@@ -557,6 +557,10 @@
           <div class="guide-d">A ogni lettura l'app salva anche l'energia rimasta nella batteria. Tra due letture con dei km in mezzo calcola quanti Wh hai consumato per km. Le coppie di letture con una ricarica in mezzo vengono scartate. Dopo almeno 5 km misurati puoi usare questo valore per aggiornare l'autonomia nei Parametri: il calcolo del risparmio resta lo stesso del foglio Excel, cambia solo il dato di partenza. Come nel foglio, non è inclusa la perdita del caricatore (circa 10-15%): sui tuoi numeri vale circa 1 € all'anno, quindi è trascurabile.</div>
         </div>
         <div class="guide-item">
+          <div class="guide-t">Due modi di stimare l'autonomia</div>
+          <div class="guide-d">La media dei cicli di ricarica assume di scaricare sempre a fondo prima di ricaricare: se carichi più spesso (buona abitudine per la salute della batteria), quella media risulta più bassa del reale. Il consumo misurato dal Bluetooth non ha questo limite, perché guarda l'energia e non la distanza tra due ricariche. Per questo, se oggi hai fatto una lettura e hai già un consumo misurato, "Km stimati alla prossima ricarica" usa la % di batteria letta oggi insieme al consumo misurato, invece della media dei cicli; altrimenti resta la media dei cicli (o il valore dichiarato, se non hai ancora registrato ricariche). Può capitare di vedere insieme due proposte di aggiornare l'autonomia nei Parametri, una dai cicli e una dal consumo misurato: sono due stime indipendenti, quella dal consumo misurato è in genere la più affidabile.</div>
+        </div>
+        <div class="guide-item">
           <div class="guide-t">Serie monopattino (streak) 🔥</div>
           <div class="guide-d">Conta i giorni consecutivi, fino a oggi, in cui hai registrato almeno uno spostamento in monopattino. Se oggi non hai ancora registrato nulla, la serie viene calcolata fino a ieri e non si interrompe subito.</div>
         </div>
@@ -1083,10 +1087,17 @@
         : fmtKm(params.autonomiaReale) + " (da Parametri; dalle ricariche serve un'altra ricarica)";
 
       remainRow.style.display = "flex";
-      var remain = autStimata - kmSince;
-      document.getElementById("battRemain").textContent = remain >= 0 ? fmtKm(remain) : "0 km";
-
-      var pct = autStimata > 0 ? Math.max(0, Math.min(100, (1 - kmSince/autStimata) * 100)) : 0;
+      var live = stimaKmDaBatteria();
+      var remain, pct;
+      if(live){
+        remain = live.km;
+        pct = Math.max(0, Math.min(100, live.soc));
+        document.getElementById("battRemain").textContent = fmtKm(remain) + " (dalla batteria letta oggi)";
+      } else {
+        remain = autStimata - kmSince;
+        pct = autStimata > 0 ? Math.max(0, Math.min(100, (1 - kmSince/autStimata) * 100)) : 0;
+        document.getElementById("battRemain").textContent = remain >= 0 ? fmtKm(remain) : "0 km";
+      }
       bar.style.width = pct.toFixed(0) + "%";
       bar.className = "bar-fill" + (pct <= 15 ? " crit" : pct <= 35 ? " low" : "");
 
@@ -1105,11 +1116,14 @@
         syncBtn.style.display = "none";
       }
     }
-    var socRead = loadJSON("rotaia_g3soc_v1", null);
+    var socRead = loadJSON(SOC_KEY, null);
     var realRow = document.getElementById("battRealRow");
     if(socRead && typeof socRead.soc === "number"){
       realRow.style.display = "flex";
-      document.getElementById("battReal").textContent = socRead.soc + "% · " + fmtOra(socRead.ts);
+      var staleSoc = !isToday(socRead.ts);
+      var battReal = document.getElementById("battReal");
+      battReal.textContent = socRead.soc + "% · " + fmtOra(socRead.ts) + (staleSoc ? " (non aggiornata)" : "");
+      battReal.style.color = staleSoc ? "var(--gold)" : "";
     } else realRow.style.display = "none";
     renderConsumo();
     renderChargeHistory();
@@ -1709,11 +1723,14 @@
   var pendingOdo = null;             // lettura da confermare al salvataggio dello spostamento
   var bleBusy = false;
 
+  function isToday(ts){
+    var d = new Date(ts);
+    return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0") === todayStr();
+  }
   function fmtOra(ts){
-    var d = new Date(ts), oggi = todayStr();
-    var ds = d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0");
+    var d = new Date(ts);
     var ora = String(d.getHours()).padStart(2,"0")+":"+String(d.getMinutes()).padStart(2,"0");
-    return (ds === oggi ? "oggi " : d.toLocaleDateString("it-IT",{day:"numeric",month:"short"})+" ") + ora;
+    return (isToday(ts) ? "oggi " : d.toLocaleDateString("it-IT",{day:"numeric",month:"short"})+" ") + ora;
   }
 
 
@@ -1741,6 +1758,17 @@
       wh += pairWh; km += dkm; n++;
     }
     return { whKm: km > 0 ? wh / km : null, km: km, n: n, enough: km >= 5 };
+  }
+  // Km rimanenti stimati dalla % di batteria letta oggi via Bluetooth e dal consumo misurato.
+  // Più precisa della media dei cicli di ricarica: quella assume di scaricare sempre a fondo
+  // prima di ricaricare, questa no. Vale solo se la lettura è di oggi: più vecchia, non è
+  // più "live" e si torna alla media dei cicli.
+  function stimaKmDaBatteria(){
+    var socRead = loadJSON(SOC_KEY, null);
+    if(!socRead || typeof socRead.soc !== "number" || !isToday(socRead.ts)) return null;
+    var m = consumoMisurato();
+    if(!m.enough || !m.whKm) return null;
+    return { km: (params.capacitaBatteria * 1000 * (socRead.soc/100)) / m.whKm, soc: socRead.soc };
   }
   function renderConsumo(){
     var m = consumoMisurato();
