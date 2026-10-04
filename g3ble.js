@@ -132,6 +132,7 @@ const G3BLE = (() => {
   };
   const BT_ID = 0x3E, BOARD_BLE = 0x04, BOARD_VCU = 0x16;
   const CMD_READ = 0x01, CMD_READ_RESP = 0x04, CMD_PRE_COMM = 0x5B, CMD_SET_PWD = 0x5C, CMD_AUTH = 0x5D;
+  const BMS_BOARDS = [0x22, 0x07, 0x23], K_BMS = "rotaia_g3_bms_v1";
   const K_KEY = "rotaia_g3_key_v1", K_PENDING = "rotaia_g3_pending_v1", K_GEN = "rotaia_g3_gen_v1", K_DEV = "rotaia_g3_device_v1";
   const enc = new TextEncoder();
   const sleep = ms => new Promise(r => setTimeout(r, ms));
@@ -325,10 +326,25 @@ const G3BLE = (() => {
       }
       say("Lettura…");
       const kmRaw = await c.read(BOARD_VCU, 0x62, 4);
-      let soc = null;
-      try { soc = u16(await c.read(BOARD_VCU, 0x55, 2)); } catch (e) {}
-      const out = { serial: c.serial, km: Math.round(u32(kmRaw)) / 10, soc };
-      L("Letti: " + out.km + " km, " + soc + "%");
+      const out = { serial: c.serial, km: Math.round(u32(kmRaw)) / 10, soc: null, plugged: null, charging: null, mAh: null, fullmAh: null, volt: null };
+      const opt = async (board, idx, len) => { try { const d = await c.read(board, idx, len); return d.length >= len ? d : null; } catch (e) { return null; } };
+      let d;
+      if ((d = await opt(BOARD_VCU, 0x55, 2))) out.soc = u16(d);
+      if ((d = await opt(BOARD_VCU, 0x1F, 2))) out.plugged = !!((d[0] >> 6) & 1);
+      if ((d = await opt(BOARD_VCU, 0x1C, 2))) out.charging = !!((d[0] >> 2) & 1);
+      // Scheda batteria: l'indirizzo dipende dal modello, si prova una breve lista e si ricorda quello giusto.
+      const known = parseInt(st.get(K_BMS) || "", 16);
+      const boards = isFinite(known) ? [known, ...BMS_BOARDS.filter(b => b !== known)] : BMS_BOARDS;
+      for (const b of boards) {
+        const v = await opt(b, 0x8C, 2);
+        if (!v || !(v[0] || v[1])) continue;
+        st.set(K_BMS, b.toString(16));
+        out.volt = u16(v) / 100;
+        if ((d = await opt(b, 0x5B, 2))) out.mAh = u16(d) * 10;
+        if ((d = await opt(b, 0x13, 2))) out.fullmAh = u16(d) * 10;
+        break;
+      }
+      L("Letti: " + out.km + " km, " + out.soc + "%, " + out.mAh + " mAh, " + out.volt + " V, caricatore " + out.plugged + ", in carica " + out.charging);
       return out;
     } catch (e) {
       if (e && e.name === "NotFoundError") throw err("cancelled", "Nessun dispositivo scelto.");

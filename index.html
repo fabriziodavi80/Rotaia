@@ -340,8 +340,10 @@
       <div class="be-detail"><span>Autonomia reale</span><span class="mono" id="battAutonomia">—</span></div>
       <div class="be-detail" id="battRemainRow" style="display:none;"><span>Km stimati alla prossima ricarica</span><span class="mono" id="battRemain">—</span></div>
       <div class="be-detail" id="battRealRow" style="display:none;"><span>Batteria letta dal monopattino</span><span class="mono" id="battReal">—</span></div>
+      <div class="be-detail" id="battConsRow" style="display:none;"><span>Consumo misurato</span><span class="mono" id="battCons">—</span></div>
       <div class="param-note" id="battNote"></div>
       <button type="button" class="ghost-btn" id="syncAutonomiaBtn" style="display:none;"></button>
+      <button type="button" class="ghost-btn" id="syncConsumoBtn" style="display:none;"></button>
       <button type="button" class="ghost-btn" id="toggleChargeFormBtn">🔌 Registra ricarica</button>
       <form id="chargeForm" novalidate style="display:none; margin-top:12px;">
         <label for="chargeDate">Data ricarica</label>
@@ -506,6 +508,7 @@
       <div class="derived" id="derivedBox">
         <div class="derived-row"><span>Consumo monopattino</span><span class="mono" id="dConsumo">—</span></div>
         <div class="derived-row"><span>Energia al km</span><span class="mono" id="dEnergia">—</span></div>
+        <div class="derived-row" id="dMisuratoRow" style="display:none;"><span>Consumo misurato dal monopattino</span><span class="mono" id="dMisurato">—</span></div>
         <div class="derived-row"><span>Manutenzione al km</span><span class="mono" id="dManut">—</span></div>
         <div class="derived-row tot t"><span>Monopattino, costo totale al km</span><span class="mono" id="dTotScooter">—</span></div>
         <div class="derived-row tot r"><span>Auto, costo al km</span><span class="mono" id="dTotAuto">—</span></div>
@@ -543,7 +546,11 @@
         </div>
         <div class="guide-item">
           <div class="guide-t">Lettura dal monopattino 🛴</div>
-          <div class="guide-d">Con il monopattino acceso e SHU chiusa, «Leggi km dal monopattino» legge il contachilometri e compila i km fatti dall'ultima lettura. La prima volta salva solo il punto di partenza. Se nel frattempo hai registrato spostamenti a mano, togli quei km dal valore proposto. In «Registra ricarica» lo stesso pulsante compila il contachilometri. La prima lettura richiede l'abbinamento: premi una volta il pulsante di accensione quando l'app lo chiede.</div>
+          <div class="guide-d">Con il monopattino acceso e SHU chiusa, «Leggi km dal monopattino» legge il contachilometri e compila i km fatti dall'ultima lettura. La prima volta salva solo il punto di partenza. Se nel frattempo hai registrato spostamenti a mano, togli quei km dal valore proposto. In «Registra ricarica» lo stesso pulsante compila il contachilometri; se leggi con il caricatore collegato, l'app ti propone di registrare la ricarica. La prima lettura richiede l'abbinamento: premi una volta il pulsante di accensione quando l'app lo chiede.</div>
+        </div>
+        <div class="guide-item">
+          <div class="guide-t">Consumo misurato ⚡</div>
+          <div class="guide-d">A ogni lettura l'app salva anche l'energia rimasta nella batteria. Tra due letture con dei km in mezzo calcola quanti Wh hai consumato per km. Le coppie di letture con una ricarica in mezzo vengono scartate. Dopo almeno 5 km misurati puoi usare questo valore per aggiornare l'autonomia nei Parametri: il calcolo del risparmio resta lo stesso del foglio Excel, cambia solo il dato di partenza. Come nel foglio, non è inclusa la perdita del caricatore (circa 10-15%).</div>
         </div>
         <div class="guide-item">
           <div class="guide-t">Serie monopattino (streak) 🔥</div>
@@ -1100,6 +1107,7 @@
       realRow.style.display = "flex";
       document.getElementById("battReal").textContent = socRead.soc + "% · " + fmtOra(socRead.ts);
     } else realRow.style.display = "none";
+    renderConsumo();
     renderChargeHistory();
   }
 
@@ -1704,6 +1712,79 @@
     return (ds === oggi ? "oggi " : d.toLocaleDateString("it-IT",{day:"numeric",month:"short"})+" ") + ora;
   }
 
+
+  // ---------- Storico letture e consumo misurato ----------
+  var READS_KEY = "rotaia_g3reads_v1";
+  function logRead(r){
+    var reads = loadJSON(READS_KEY, []);
+    reads.push({ ts: Date.now(), date: todayStr(), km: r.km, soc: r.soc, mAh: r.mAh, volt: r.volt, plugged: r.plugged });
+    if(reads.length > 300) reads = reads.slice(reads.length - 300);
+    saveJSON(READS_KEY, reads);
+  }
+  // Wh consumati per km, dalla batteria: somma su coppie di letture consecutive
+  // in cui i km sono aumentati e l'energia è diminuita (niente ricarica in mezzo).
+  function consumoMisurato(){
+    var reads = loadJSON(READS_KEY, []).slice().sort(function(a,b){ return a.ts - b.ts; });
+    var wh = 0, km = 0, n = 0;
+    for(var i=1;i<reads.length;i++){
+      var a = reads[i-1], b = reads[i];
+      if(typeof a.mAh !== "number" || typeof b.mAh !== "number" || !a.volt || !b.volt) continue;
+      var dkm = b.km - a.km, dAh = (a.mAh - b.mAh) / 1000;
+      if(dkm < 0.3 || dAh <= 0) continue;
+      var pairWh = dAh * (a.volt + b.volt) / 2;
+      var whKm = pairWh / dkm;
+      if(whKm < 5 || whKm > 45) continue;   // valori fuori scala: probabile ricarica parziale in mezzo
+      wh += pairWh; km += dkm; n++;
+    }
+    return { whKm: km > 0 ? wh / km : null, km: km, n: n, enough: km >= 5 };
+  }
+  function renderConsumo(){
+    var m = consumoMisurato();
+    var row = document.getElementById("battConsRow"), btn = document.getElementById("syncConsumoBtn");
+    var pRow = document.getElementById("dMisuratoRow");
+    if(m.whKm === null){ row.style.display = "none"; btn.style.display = "none"; pRow.style.display = "none"; return; }
+    var txt = (Math.round(m.whKm*10)/10).toString().replace(".", ",") + " Wh/km su " + fmtKm(m.km);
+    row.style.display = "flex"; pRow.style.display = "flex";
+    document.getElementById("battCons").textContent = m.enough ? txt : txt + " (servono almeno 5 km)";
+    document.getElementById("dMisurato").textContent = txt;
+    var autMis = params.capacitaBatteria * 1000 / m.whKm;
+    if(m.enough && Math.abs(autMis - params.autonomiaReale) >= 1){
+      btn.style.display = "block";
+      btn.textContent = "Usa consumo misurato per l'autonomia (" + Math.round(params.autonomiaReale) + " → " + Math.round(autMis) + " km)";
+    } else btn.style.display = "none";
+  }
+  document.getElementById("syncConsumoBtn").addEventListener("click", function(){
+    var m = consumoMisurato();
+    if(!m.enough || !m.whKm) return;
+    params.autonomiaReale = Math.round(params.capacitaBatteria * 1000 / m.whKm * 10) / 10;
+    saveJSON(PARAMS_KEY, params);
+    renderDashboard();
+    fillParamForm();
+    showToast("✓ Autonomia aggiornata dal consumo misurato");
+  });
+
+  // ---------- Ricarica riconosciuta ----------
+  function offerCharge(box, r){
+    var old = box.querySelector(".ble-charge"); if(old) old.remove();
+    if(!r.plugged) return;
+    if(charges.some(function(c){ return c.date === todayStr() && Math.abs(c.km - r.km) < 1; })) return;
+    var b = document.createElement("button");
+    b.type = "button"; b.className = "primary-btn ble-charge";
+    b.textContent = "🔌 Caricatore collegato: registra la ricarica a " + fmtKm(r.km);
+    b.addEventListener("click", function(){
+      b.remove();
+      showView("dashboard");
+      var form = document.getElementById("chargeForm");
+      resetChargeForm();
+      document.getElementById("chargeDate").value = todayStr();
+      document.getElementById("chargeKm").value = r.km;
+      form.style.display = "block";
+      form.scrollIntoView({ behavior:"smooth", block:"center" });
+      showToast("Controlla e tocca «Salva ricarica»");
+    });
+    box.appendChild(b);
+  }
+
   function mountBle(boxId, label, onResult){
     var box = document.getElementById(boxId);
     if(!box || typeof G3BLE === "undefined" || !G3BLE.supported()) return null;
@@ -1718,11 +1799,14 @@
     function run(mode){
       if(bleBusy) return;
       bleBusy = true; btn.disabled = true; pairBox.style.display = "none";
+      var oldCharge = box.querySelector(".ble-charge"); if(oldCharge) oldCharge.remove();
       G3BLE.readScooter(mode, setNote, function(){ setNote("Premi ora UNA volta il pulsante di accensione del monopattino."); })
         .then(function(r){
           saveJSON(SOC_KEY, { soc: r.soc, ts: Date.now() });
+          logRead(r);
           renderBleKey();
           onResult(r, setNote);
+          if(boxId !== "chargeBle") offerCharge(box, r);
           renderBattery();
         })
         .catch(function(e){
@@ -1771,7 +1855,7 @@
     document.getElementById("chargeKm").value = r.km;
     if(!document.getElementById("chargeDate").value) document.getElementById("chargeDate").value = todayStr();
     clearFieldError("chargeKm");
-    setNote("Contachilometri letto: " + fmtKm(r.km) + (r.soc !== null ? " · batteria al " + r.soc + "%" : "") + ".");
+    setNote("Contachilometri letto: " + fmtKm(r.km) + (r.soc !== null ? " · batteria al " + r.soc + "%" : "") + (r.charging ? " · in carica" : r.plugged ? " · caricatore collegato" : "") + ".");
   });
 
   function renderBleKey(){
