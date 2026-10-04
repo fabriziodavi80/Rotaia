@@ -216,7 +216,7 @@
   .ble-pair{ margin-top:10px; padding:12px; border:1px dashed var(--gold); border-radius:8px; background:var(--gold-soft); }
   .ble-pair .param-note{ margin-top:0; color:var(--ink); }
   .ble-pair .primary-btn{ margin-top:12px; }
-  .ble-key{ font-family:"IBM Plex Mono", ui-monospace, monospace; font-size:12px; overflow-wrap:anywhere; color:var(--ink); }
+  .ble-key{ user-select:all; -webkit-user-select:all; font-family:"IBM Plex Mono", ui-monospace, monospace; font-size:12px; overflow-wrap:anywhere; color:var(--ink); }
   textarea.ble-key-in{ width:100%; min-height:60px; padding:10px 12px; border-radius:8px; border:1px solid var(--ink-10); background:var(--bg); color:var(--ink); font:13px "IBM Plex Mono", ui-monospace, monospace; }
   .backup-btns .ghost-btn{ margin-top:0; }
 
@@ -1782,6 +1782,12 @@
     document.getElementById("bleKeyShow").textContent = k ? k.serial + ":" + k.hex : "Nessuna chiave salvata.";
   }
   function copyText(text, okMsg){
+    var ta = document.createElement("textarea");
+    ta.value = text; ta.setAttribute("readonly", ""); ta.style.position = "fixed"; ta.style.top = "-1000px";
+    document.body.appendChild(ta); ta.select(); ta.setSelectionRange(0, text.length);
+    var ok = false; try{ ok = document.execCommand("copy"); }catch(e){}
+    document.body.removeChild(ta);
+    if(ok){ showToast(okMsg); return; }
     if(navigator.clipboard && navigator.clipboard.writeText){
       navigator.clipboard.writeText(text).then(function(){ showToast(okMsg); }, function(){ showToast("Copia non riuscita"); });
     } else showToast("Copia non riuscita");
