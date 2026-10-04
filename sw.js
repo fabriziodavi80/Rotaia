@@ -1,7 +1,8 @@
-var CACHE_NAME = "rotaia-cache-v4";
+var CACHE_NAME = "rotaia-cache-v5";
 var CORE_ASSETS = [
   "./",
   "./index.html",
+  "./g3ble.js",
   "./manifest.json",
   "./icon-192.png",
   "./icon-512.png",

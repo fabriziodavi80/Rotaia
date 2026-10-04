@@ -210,6 +210,14 @@
     color:var(--ink-60); font-size:13px; cursor:pointer; font-family:inherit; margin-top:6px;
   }
   .backup-btns{ display:flex; flex-direction:column; gap:8px; }
+  .ble-box{ margin-top:10px; }
+  .ble-box .ble-read{ color:var(--teal-ink); border-color:var(--teal); }
+  .ble-box .param-note{ margin-top:8px; }
+  .ble-pair{ margin-top:10px; padding:12px; border:1px dashed var(--gold); border-radius:8px; background:var(--gold-soft); }
+  .ble-pair .param-note{ margin-top:0; color:var(--ink); }
+  .ble-pair .primary-btn{ margin-top:12px; }
+  .ble-key{ font-family:"IBM Plex Mono", ui-monospace, monospace; font-size:12px; overflow-wrap:anywhere; color:var(--ink); }
+  textarea.ble-key-in{ width:100%; min-height:60px; padding:10px 12px; border-radius:8px; border:1px solid var(--ink-10); background:var(--bg); color:var(--ink); font:13px "IBM Plex Mono", ui-monospace, monospace; }
   .backup-btns .ghost-btn{ margin-top:0; }
 
   .routes-wrap{ display:flex; flex-wrap:wrap; gap:8px; }
@@ -331,6 +339,7 @@
       <div class="be-detail"><span>Da ultima ricarica</span><span class="mono" id="battKmSince">—</span></div>
       <div class="be-detail"><span>Autonomia reale</span><span class="mono" id="battAutonomia">—</span></div>
       <div class="be-detail" id="battRemainRow" style="display:none;"><span>Km stimati alla prossima ricarica</span><span class="mono" id="battRemain">—</span></div>
+      <div class="be-detail" id="battRealRow" style="display:none;"><span>Batteria letta dal monopattino</span><span class="mono" id="battReal">—</span></div>
       <div class="param-note" id="battNote"></div>
       <button type="button" class="ghost-btn" id="syncAutonomiaBtn" style="display:none;"></button>
       <button type="button" class="ghost-btn" id="toggleChargeFormBtn">🔌 Registra ricarica</button>
@@ -342,6 +351,7 @@
         <label for="chargeKm">Km totali sul contachilometri</label>
         <input type="number" id="chargeKm" min="0" step="1" inputmode="decimal" placeholder="es. 194">
         <div class="field-error" id="chargeKmError"></div>
+        <div class="ble-box" id="chargeBle" style="display:none;"></div>
 
         <button type="submit" class="primary-btn" id="chargeSubmitBtn">Salva ricarica</button>
         <button type="button" class="ghost-btn" id="cancelChargeEditBtn" style="display:none;">Annulla modifica</button>
@@ -415,6 +425,7 @@
         <label for="tripKm">Chilometri percorsi</label>
         <input type="number" id="tripKm" min="0" step="0.1" inputmode="decimal" placeholder="es. 6.5">
         <div class="field-error" id="tripKmError"></div>
+        <div class="ble-box" id="tripBle" style="display:none;"></div>
 
         <button type="submit" class="primary-btn" id="tripSubmitBtn">Salva spostamento</button>
         <button type="button" class="ghost-btn" id="saveRouteBtn">☆ Salva come tragitto</button>
@@ -503,6 +514,22 @@
       <button class="ghost-btn" id="resetBtn">Cancella tutti gli spostamenti e le ricariche</button>
     </div>
 
+    <div class="card" id="bleCard" style="display:none;">
+      <h2>🛴 Monopattino via Bluetooth</h2>
+      <div class="param-note" style="margin-top:0;">L'app legge dal Max G3 solo i km del contachilometri e la % di batteria. Non modifica impostazioni né firmware. Quando usi SHU per cambiare parametri, il monopattino potrebbe chiedere di abbinare di nuovo l'app.</div>
+      <div class="be-detail"><span>Chiave di abbinamento</span></div>
+      <div class="ble-key" id="bleKeyShow">Nessuna chiave salvata.</div>
+      <label for="bleKeyIn" style="display:block; font-size:13px; color:var(--ink-60); margin:12px 0 6px;">Incolla una chiave (formato SERIALE:CHIAVE)</label>
+      <textarea class="ble-key-in" id="bleKeyIn" placeholder="es. 1CGIF2527C0369:00112233445566778899AABBCCDDEEFF"></textarea>
+      <div class="field-error" id="bleKeyError"></div>
+      <div class="backup-btns" style="margin-top:8px;">
+        <button type="button" class="ghost-btn" id="bleKeySave">Salva chiave incollata</button>
+        <button type="button" class="ghost-btn" id="bleKeyCopy">Copia chiave</button>
+        <button type="button" class="ghost-btn" id="bleKeyForget">Dimentica chiave e monopattino</button>
+        <button type="button" class="ghost-btn" id="bleLogCopy">Copia registro tecnico</button>
+      </div>
+    </div>
+
     <details class="card">
       <summary>ℹ️ Guida rapida</summary>
       <div class="details-body">
@@ -513,6 +540,10 @@
         <div class="guide-item">
           <div class="guide-t">Autonomia e ricariche</div>
           <div class="guide-d">Registrando le ricariche (data + km totali letti sul contachilometri), l'app calcola l'autonomia reale come media dei km percorsi tra una ricarica e la successiva. Finché hai registrato una sola ricarica, viene usato il valore "dichiarato" impostato sopra. I km percorsi lo stesso giorno di una ricarica, se registrati dopo di essa, vengono contati a partire dal giorno seguente.</div>
+        </div>
+        <div class="guide-item">
+          <div class="guide-t">Lettura dal monopattino 🛴</div>
+          <div class="guide-d">Con il monopattino acceso e SHU chiusa, «Leggi km dal monopattino» legge il contachilometri e compila i km fatti dall'ultima lettura. La prima volta salva solo il punto di partenza. Se nel frattempo hai registrato spostamenti a mano, togli quei km dal valore proposto. In «Registra ricarica» lo stesso pulsante compila il contachilometri. La prima lettura richiede l'abbinamento: premi una volta il pulsante di accensione quando l'app lo chiede.</div>
         </div>
         <div class="guide-item">
           <div class="guide-t">Serie monopattino (streak) 🔥</div>
@@ -553,6 +584,7 @@
 
 <div class="toast" id="toast" role="status" aria-live="polite"></div>
 
+<script src="g3ble.js"></script>
 <script>
 (function(){
   "use strict";
@@ -1062,6 +1094,12 @@
         syncBtn.style.display = "none";
       }
     }
+    var socRead = loadJSON("rotaia_g3soc_v1", null);
+    var realRow = document.getElementById("battRealRow");
+    if(socRead && typeof socRead.soc === "number"){
+      realRow.style.display = "flex";
+      document.getElementById("battReal").textContent = socRead.soc + "% · " + fmtOra(socRead.ts);
+    } else realRow.style.display = "none";
     renderChargeHistory();
   }
 
@@ -1208,6 +1246,8 @@
     mezzoSel = m;
     if(m === "monopattino"){ btnScooter.classList.add("on"); btnCar.classList.remove("on"); }
     else { btnCar.classList.add("on"); btnScooter.classList.remove("on"); }
+    var tb = document.getElementById("tripBle");
+    if(tb && tb.innerHTML) tb.style.display = m === "monopattino" ? "block" : "none";
   }
   btnScooter.addEventListener("click", function(){ selectMezzo("monopattino"); });
   btnCar.addEventListener("click", function(){ selectMezzo("auto"); });
@@ -1221,6 +1261,8 @@
     document.getElementById("cancelEditBtn").style.display = "none";
     document.getElementById("tripDate").value = todayStr();
     document.getElementById("tripKm").value = "";
+    pendingOdo = null;
+    var tbn = document.querySelector("#tripBle .ble-note"); if(tbn) tbn.textContent = "";
     selectMezzo("monopattino");
     clearFieldError("tripDate");
     clearFieldError("tripKm");
@@ -1280,6 +1322,7 @@
     }
     trips.sort(function(a,b){ return a.date < b.date ? 1 : -1; });
     saveJSON(TRIPS_KEY, trips);
+    if(pendingOdo && !wasEditing && mezzoSel === "monopattino") saveJSON(ODO_KEY, pendingOdo);
     resetAddForm();
     showView("dashboard");
     showToast(wasEditing ? "✓ Spostamento modificato" : "✓ Spostamento salvato");
@@ -1646,6 +1689,123 @@
     });
   });
   applyTheme(localStorage.getItem(THEME_KEY) || "dark");
+
+
+  // ---------- Lettura dal monopattino (Bluetooth, sola lettura) ----------
+  var ODO_KEY = "rotaia_odo_v1";     // ultima lettura del contachilometri usata come riferimento per i tragitti
+  var SOC_KEY = "rotaia_g3soc_v1";   // ultima % di batteria letta
+  var pendingOdo = null;             // lettura da confermare al salvataggio dello spostamento
+  var bleBusy = false;
+
+  function fmtOra(ts){
+    var d = new Date(ts), oggi = todayStr();
+    var ds = d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0");
+    var ora = String(d.getHours()).padStart(2,"0")+":"+String(d.getMinutes()).padStart(2,"0");
+    return (ds === oggi ? "oggi " : d.toLocaleDateString("it-IT",{day:"numeric",month:"short"})+" ") + ora;
+  }
+
+  function mountBle(boxId, label, onResult){
+    var box = document.getElementById(boxId);
+    if(!box || typeof G3BLE === "undefined" || !G3BLE.supported()) return null;
+    box.innerHTML = '<button type="button" class="ghost-btn ble-read">'+label+'</button>'
+      + '<div class="param-note ble-note"></div>'
+      + '<div class="ble-pair" style="display:none;"><div class="param-note ble-warn"></div>'
+      + '<button type="button" class="primary-btn ble-pair-btn">Abbina ora</button>'
+      + '<button type="button" class="ghost-btn ble-cancel">Annulla</button></div>';
+    var btn = box.querySelector(".ble-read"), note = box.querySelector(".ble-note");
+    var pairBox = box.querySelector(".ble-pair"), warn = box.querySelector(".ble-warn");
+    function setNote(t){ note.textContent = t || ""; }
+    function run(mode){
+      if(bleBusy) return;
+      bleBusy = true; btn.disabled = true; pairBox.style.display = "none";
+      G3BLE.readScooter(mode, setNote, function(){ setNote("Premi ora UNA volta il pulsante di accensione del monopattino."); })
+        .then(function(r){
+          saveJSON(SOC_KEY, { soc: r.soc, ts: Date.now() });
+          renderBleKey();
+          onResult(r, setNote);
+          renderBattery();
+        })
+        .catch(function(e){
+          if(e && e.code === "needs_pair"){
+            setNote("");
+            warn.textContent = (e.keyInvalid ? "La chiave salvata non è più valida: probabilmente il monopattino è stato riabbinato con SHU. " : "Serve abbinare l'app al monopattino, una sola volta. ")
+              + "Dopo «Abbina ora», quando l'app lo chiede, premi una volta il pulsante di accensione. "
+              + (e.stored ? "Il monopattino è abbinato anche a un'altra app (SHU): la prossima volta che apri SHU potrebbe chiederti di riabbinarla. Velocità, regione e altri parametri non cambiano." : "Velocità, regione e altri parametri non cambiano.");
+            pairBox.style.display = "block";
+          } else {
+            setNote(e && e.message ? e.message : "Lettura non riuscita.");
+          }
+        })
+        .then(function(){ bleBusy = false; btn.disabled = false; renderBleKey(); });
+    }
+    btn.addEventListener("click", function(){ run("read"); });
+    box.querySelector(".ble-pair-btn").addEventListener("click", function(){ run("pair"); });
+    box.querySelector(".ble-cancel").addEventListener("click", function(){ pairBox.style.display = "none"; setNote("Abbinamento annullato. Sul monopattino non è cambiato nulla."); });
+    box.style.display = "block";
+    return { setNote: setNote, box: box };
+  }
+
+  var tripBle = mountBle("tripBle", "🛴 Leggi km dal monopattino", function(r, setNote){
+    selectMezzo("monopattino");
+    var ref = loadJSON(ODO_KEY, null);
+    if(!ref || typeof ref.km !== "number"){
+      saveJSON(ODO_KEY, { km: r.km, date: todayStr() });
+      setNote("Prima lettura: contachilometri a " + fmtKm(r.km) + ". Da qui in avanti i km si compileranno da soli.");
+      return;
+    }
+    var delta = Math.round((r.km - ref.km) * 10) / 10;
+    if(delta < 0){
+      saveJSON(ODO_KEY, { km: r.km, date: todayStr() });
+      setNote("Il contachilometri (" + fmtKm(r.km) + ") è più basso del riferimento salvato: ho aggiornato il riferimento.");
+      return;
+    }
+    if(delta === 0){ setNote("Nessun km nuovo dall'ultima lettura (" + fmtKm(r.km) + ")."); return; }
+    document.getElementById("tripKm").value = delta;
+    clearFieldError("tripKm");
+    pendingOdo = { km: r.km, date: todayStr() };
+    var refDate = new Date(ref.date + "T00:00:00").toLocaleDateString("it-IT",{day:"numeric",month:"short"});
+    setNote("Contachilometri " + fmtKm(r.km) + ": +" + fmtKm(delta) + " dalla lettura del " + refDate + ". Salva lo spostamento per confermare.");
+  });
+
+  mountBle("chargeBle", "🛴 Leggi contachilometri dal monopattino", function(r, setNote){
+    document.getElementById("chargeKm").value = r.km;
+    if(!document.getElementById("chargeDate").value) document.getElementById("chargeDate").value = todayStr();
+    clearFieldError("chargeKm");
+    setNote("Contachilometri letto: " + fmtKm(r.km) + (r.soc !== null ? " · batteria al " + r.soc + "%" : "") + ".");
+  });
+
+  function renderBleKey(){
+    var card = document.getElementById("bleCard");
+    if(typeof G3BLE === "undefined" || !G3BLE.supported()){ card.style.display = "none"; return; }
+    card.style.display = "block";
+    var k = G3BLE.getKey();
+    document.getElementById("bleKeyShow").textContent = k ? k.serial + ":" + k.hex : "Nessuna chiave salvata.";
+  }
+  function copyText(text, okMsg){
+    if(navigator.clipboard && navigator.clipboard.writeText){
+      navigator.clipboard.writeText(text).then(function(){ showToast(okMsg); }, function(){ showToast("Copia non riuscita"); });
+    } else showToast("Copia non riuscita");
+  }
+  document.getElementById("bleKeySave").addEventListener("click", function(){
+    clearFieldError("bleKeyError");
+    if(!G3BLE.setKey(document.getElementById("bleKeyIn").value)){
+      setFieldError("bleKeyError", "Formato non valido: serve SERIALE:CHIAVE, con 32 caratteri esadecimali dopo i due punti.");
+      return;
+    }
+    document.getElementById("bleKeyIn").value = "";
+    renderBleKey(); showToast("✓ Chiave salvata");
+  });
+  document.getElementById("bleKeyCopy").addEventListener("click", function(){
+    var k = G3BLE.getKey();
+    if(!k){ showToast("Nessuna chiave da copiare"); return; }
+    copyText(k.serial + ":" + k.hex, "✓ Chiave copiata");
+  });
+  document.getElementById("bleKeyForget").addEventListener("click", function(){
+    if(!confirm("Dimenticare chiave e monopattino? Alla prossima lettura servirà un nuovo abbinamento.")) return;
+    G3BLE.forgetKey(); renderBleKey(); showToast("Chiave dimenticata");
+  });
+  document.getElementById("bleLogCopy").addEventListener("click", function(){ copyText(G3BLE.log() || "(vuoto)", "✓ Registro copiato"); });
+  if(typeof G3BLE !== "undefined") renderBleKey();
 
   // ---------- Init ----------
   showView(initialView());
