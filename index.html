@@ -453,12 +453,13 @@
     <div class="card">
       <h2>Backup dati</h2>
       <div class="backup-btns">
-        <button class="ghost-btn" id="exportBtn" type="button">Esporta spostamenti (CSV)</button>
-        <button class="ghost-btn" id="shareBtn" type="button" style="display:none;">Condividi backup</button>
-        <button class="ghost-btn" id="importBtn" type="button">Importa da CSV</button>
-        <input type="file" id="importFile" accept=".csv,text/csv" hidden>
+        <button class="ghost-btn" id="fullExportBtn" type="button">Backup completo (JSON)</button>
+        <button class="ghost-btn" id="shareBtn" type="button" style="display:none;">Condividi backup completo</button>
+        <button class="ghost-btn" id="exportBtn" type="button">Esporta solo spostamenti (CSV)</button>
+        <button class="ghost-btn" id="importBtn" type="button">Importa da file (JSON o CSV)</button>
+        <input type="file" id="importFile" accept=".json,.csv,application/json,text/csv" hidden>
       </div>
-      <div class="param-note">Il file usa il punto e virgola come separatore, compatibile con Excel in formato italiano. Gli spostamenti già presenti (stessa data, mezzo e km) non vengono duplicati in fase di importazione.</div>
+      <div class="param-note">Il backup completo contiene spostamenti, ricariche, tragitti salvati, parametri, storico delle letture Bluetooth e riferimento del contachilometri; è quello da usare se cambi telefono. La chiave di abbinamento del monopattino non è inclusa, per sicurezza: conservala a parte (Parametri → Monopattino via Bluetooth). Il CSV contiene solo gli spostamenti, con il punto e virgola come separatore, compatibile con Excel in formato italiano. Importando, gli elementi già presenti non vengono duplicati.</div>
       <div class="param-note" id="backupStatus"></div>
     </div>
   </section>
@@ -546,7 +547,7 @@
         </div>
         <div class="guide-item">
           <div class="guide-t">Lettura dal monopattino 🛴</div>
-          <div class="guide-d">Con il monopattino acceso e SHU chiusa, «Leggi km dal monopattino» legge il contachilometri e compila i km fatti dall'ultima lettura. La prima volta salva solo il punto di partenza, perché non c'è ancora un riferimento precedente con cui calcolare la differenza: se hai già percorso km oggi prima di questa prima lettura, il campo km resta vuoto e vanno inseriti a mano (il contachilometri letto li include già). Se nel frattempo hai registrato spostamenti a mano, togli quei km dal valore proposto. In «Registra ricarica» lo stesso pulsante compila il contachilometri; se leggi con il caricatore collegato, l'app ti propone di registrare la ricarica. La prima lettura richiede l'abbinamento: premi una volta il pulsante di accensione quando l'app lo chiede.</div>
+          <div class="guide-d">Con il monopattino acceso e SHU chiusa, «Leggi km dal monopattino» legge il contachilometri e compila i km fatti dall'ultima lettura. La prima volta salva solo il punto di partenza, perché non c'è ancora un riferimento precedente con cui calcolare la differenza: se hai già percorso km oggi prima di questa prima lettura, il campo km resta vuoto e vanno inseriti a mano (il contachilometri letto li include già). Se dopo l'ultima lettura hai registrato spostamenti in monopattino a mano, l'app li toglie da sola dal valore proposto, così non vengono contati due volte (vale dalla seconda lettura confermata in poi). In «Registra ricarica» lo stesso pulsante compila il contachilometri; se leggi con il caricatore collegato, l'app ti propone di registrare la ricarica. La prima lettura richiede l'abbinamento: premi una volta il pulsante di accensione quando l'app lo chiede.</div>
         </div>
         <div class="guide-item">
           <div class="guide-t">Abbinamento e SHU 🔑</div>
@@ -570,7 +571,7 @@
         </div>
         <div class="guide-item">
           <div class="guide-t">Backup dei dati</div>
-          <div class="guide-d">Tutto è salvato solo su questo dispositivo (nessun account, nessun server). Esporta periodicamente il CSV da Storico, o condividilo direttamente, per non perdere i dati se cambi telefono o cancelli l'app.</div>
+          <div class="guide-d">Tutto è salvato solo su questo dispositivo (nessun account, nessun server). Esporta periodicamente il «Backup completo (JSON)» da Storico, o condividilo direttamente, per non perdere nulla se cambi telefono o cancelli l'app: contiene spostamenti, ricariche, tragitti, parametri e storico delle letture. Per ripristinarlo usa «Importa da file». La chiave di abbinamento del monopattino non è nel backup: conservane una copia da Parametri. Il CSV serve solo se vuoi i soli spostamenti in Excel.</div>
         </div>
       </div>
     </details>
@@ -1340,15 +1341,19 @@
 
     var date = dateRaw || todayStr();
     var wasEditing = !!editingId;
+    var newTrip = null;
     if(editingId){
       var t = trips.find(function(x){ return x.id === editingId; });
       if(t){ t.date = date; t.mezzo = mezzoSel; t.km = km; }
     } else {
-      trips.push({ id: Date.now()+"-"+Math.random().toString(36).slice(2,7), date: date, mezzo: mezzoSel, km: km });
+      newTrip = { id: Date.now()+"-"+Math.random().toString(36).slice(2,7), date: date, mezzo: mezzoSel, km: km };
+      trips.push(newTrip);
     }
     trips.sort(function(a,b){ return a.date < b.date ? 1 : -1; });
     saveJSON(TRIPS_KEY, trips);
-    if(pendingOdo && !wasEditing && mezzoSel === "monopattino") saveJSON(ODO_KEY, pendingOdo);
+    // Il riferimento del contachilometri ricorda quale spostamento è nato da questa lettura,
+    // così alla lettura successiva non viene sottratto come se fosse un inserimento manuale.
+    if(pendingOdo && newTrip && mezzoSel === "monopattino") saveJSON(ODO_KEY, Object.assign({}, pendingOdo, { skipId: newTrip.id }));
     resetAddForm();
     showView("dashboard");
     showToast(wasEditing ? "✓ Spostamento modificato" : "✓ Spostamento salvato");
@@ -1531,18 +1536,56 @@
     renderBackupStatus();
   }
 
+  // ---------- Backup completo (JSON) ----------
+  function buildFullBackup(){
+    return {
+      app: "max-g3-saving", format: 1, exportedAt: new Date().toISOString(),
+      data: {
+        trips: trips, charges: charges, routes: routes, params: params,
+        reads: loadJSON(READS_KEY, []), odo: loadJSON(ODO_KEY, null), soc: loadJSON(SOC_KEY, null)
+      }
+    };
+  }
+  function fullBackupBlob(type){
+    return new Blob([JSON.stringify(buildFullBackup(), null, 1)], { type: type || "application/json" });
+  }
+  function fullBackupName(){ return "max-g3-saving-backup-" + todayStr() + ".json"; }
+
+  function exportFullBackup(){
+    var url = URL.createObjectURL(fullBackupBlob());
+    var a = document.createElement("a");
+    a.href = url;
+    a.download = fullBackupName();
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    setTimeout(function(){ URL.revokeObjectURL(url); }, 2000);
+    localStorage.setItem(BACKUP_KEY, todayStr());
+    renderBackupStatus();
+    showToast("✓ Backup completo esportato");
+  }
+
+  // Alcuni browser non condividono i file .json con il loro tipo: si prova anche come testo.
+  function shareType(){
+    var types = ["application/json", "text/plain"];
+    for(var i=0;i<types.length;i++){
+      try{
+        if(navigator.canShare({ files:[new File(["{}"], "test.json", { type: types[i] })] })) return types[i];
+      }catch(e){}
+    }
+    return null;
+  }
   function canShareFiles(){
-    try{
-      return !!(window.File && navigator.share && navigator.canShare
-        && navigator.canShare({ files:[new File(["test"], "test.csv", { type:"text/csv" })] }));
-    }catch(e){ return false; }
+    try{ return !!(window.File && navigator.share && navigator.canShare && shareType()); }
+    catch(e){ return false; }
   }
 
   function shareBackup(){
     try{
-      var blob = buildCSVBlob();
-      var file = new File([blob], "rotaia-spostamenti-" + todayStr() + ".csv", { type: "text/csv" });
-      navigator.share({ files:[file], title:"Backup Max G3 Saving", text:"Backup dei miei spostamenti Max G3 Saving" })
+      var type = shareType();
+      if(!type) return;
+      var file = new File([fullBackupBlob(type)], fullBackupName(), { type: type });
+      navigator.share({ files:[file], title:"Backup Max G3 Saving", text:"Backup completo di Max G3 Saving" })
         .then(function(){
           localStorage.setItem(BACKUP_KEY, todayStr());
           renderBackupStatus();
@@ -1612,6 +1655,100 @@
     alert("Importati " + added + " spostamenti." + (skipped>0 ? " " + skipped + " già presenti sono stati saltati." : ""));
   }
 
+  function newId(){ return Date.now()+"-"+Math.random().toString(36).slice(2,7); }
+  function validId(id){ return typeof id === "string" && /^\d{10,}-[a-z0-9]{1,10}$/.test(id); }
+  function cleanLabel(s){ return String(s || "").replace(/[<>&"']/g, "").trim().slice(0, 40) || "Tragitto"; }
+  function numOrNull(v){ return (typeof v === "number" && isFinite(v)) ? v : null; }
+
+  // Unisce un backup completo a quello che c'è già: gli elementi presenti non si duplicano.
+  // Parametri e riferimento del contachilometri più recente vengono presi dal file.
+  function importFullBackup(obj){
+    var d = obj && obj.data;
+    if(!obj || obj.app !== "max-g3-saving" || !d || typeof d !== "object"){
+      alert("File non riconosciuto: non è un backup completo di Max G3 Saving.");
+      return;
+    }
+    if(!confirm("Importare il backup completo? Spostamenti, ricariche, tragitti e letture vengono uniti a quelli già presenti, senza duplicati. I parametri vengono sostituiti da quelli del file.")) return;
+    var arr = function(x){ return Array.isArray(x) ? x : []; };
+    var added = { trips:0, charges:0, routes:0, reads:0 };
+
+    var have = {}; trips.forEach(function(t){ have[t.id] = true; });
+    arr(d.trips).forEach(function(t){
+      if(!t) return;
+      var date = normalizeDate(t.date), km = Number(t.km);
+      var mezzo = (t.mezzo === "monopattino" || t.mezzo === "auto") ? t.mezzo : null;
+      if(!date || !mezzo || !isFinite(km) || km <= 0) return;
+      var id = validId(t.id) ? t.id : newId();
+      if(have[id]) return;
+      have[id] = true;
+      trips.push({ id:id, date:date, mezzo:mezzo, km:km }); added.trips++;
+    });
+    trips.sort(function(a,b){ return a.date < b.date ? 1 : -1; });
+
+    have = {}; charges.forEach(function(c){ have[c.id] = true; });
+    arr(d.charges).forEach(function(c){
+      if(!c) return;
+      var date = normalizeDate(c.date), km = Number(c.km);
+      if(!date || !isFinite(km) || km < 0) return;
+      var id = validId(c.id) ? c.id : newId();
+      if(have[id]) return;
+      have[id] = true;
+      charges.push({ id:id, date:date, km:km }); added.charges++;
+    });
+
+    have = {}; routes.forEach(function(r){ have[r.id] = true; });
+    arr(d.routes).forEach(function(r){
+      if(!r) return;
+      var km = Number(r.km);
+      if((r.mezzo !== "monopattino" && r.mezzo !== "auto") || !isFinite(km) || km <= 0) return;
+      var id = validId(r.id) ? r.id : newId();
+      if(have[id]) return;
+      have[id] = true;
+      routes.push({ id:id, label:cleanLabel(r.label), mezzo:r.mezzo, km:km }); added.routes++;
+    });
+
+    var reads = loadJSON(READS_KEY, []);
+    have = {}; reads.forEach(function(r){ have[r.ts] = true; });
+    arr(d.reads).forEach(function(r){
+      if(!r || typeof r.ts !== "number" || !isFinite(r.ts) || typeof r.km !== "number" || !isFinite(r.km) || have[r.ts]) return;
+      have[r.ts] = true;
+      reads.push({ ts:r.ts, date:normalizeDate(r.date) || todayStr(), km:r.km, soc:numOrNull(r.soc), mAh:numOrNull(r.mAh),
+        fullmAh:numOrNull(r.fullmAh), volt:numOrNull(r.volt), plugged: r.plugged === true ? true : r.plugged === false ? false : null });
+      added.reads++;
+    });
+    reads.sort(function(a,b){ return a.ts - b.ts; });
+    if(reads.length > 300) reads = reads.slice(reads.length - 300);
+
+    var np = {};
+    if(d.params && typeof d.params === "object"){
+      Object.keys(DEFAULT_PARAMS).forEach(function(k){
+        var v = Number(d.params[k]);
+        if(isFinite(v) && (k === "obiettivoMensile" ? v >= 0 : v > 0)) np[k] = v;
+      });
+    }
+    params = Object.assign({}, DEFAULT_PARAMS, params, np);
+
+    // L'odometro non scende mai: il riferimento con più km è quello più recente.
+    var o = d.odo, localOdo = loadJSON(ODO_KEY, null);
+    if(o && typeof o.km === "number" && isFinite(o.km) && normalizeDate(o.date)
+       && (!localOdo || typeof localOdo.km !== "number" || o.km > localOdo.km)){
+      saveJSON(ODO_KEY, { km:o.km, date:normalizeDate(o.date), ts: numOrNull(o.ts) === null ? undefined : o.ts,
+        skipId: validId(o.skipId) ? o.skipId : undefined });
+    }
+    var s = d.soc, localSoc = loadJSON(SOC_KEY, null);
+    if(s && typeof s.ts === "number" && typeof s.soc === "number" && (!localSoc || s.ts > localSoc.ts)){
+      saveJSON(SOC_KEY, { soc:s.soc, ts:s.ts });
+    }
+
+    saveJSON(TRIPS_KEY, trips); saveJSON(CHARGES_KEY, charges); saveJSON(ROUTES_KEY, routes);
+    saveJSON(READS_KEY, reads); saveJSON(PARAMS_KEY, params);
+    renderHistory();
+    renderDashboard();
+    alert("Backup importato: " + added.trips + " spostamenti, " + added.charges + " ricariche, " + added.routes + " tragitti e "
+      + added.reads + " letture aggiunti. Gli elementi già presenti sono stati saltati.");
+  }
+
+  document.getElementById("fullExportBtn").addEventListener("click", exportFullBackup);
   document.getElementById("exportBtn").addEventListener("click", exportCSV);
   if(canShareFiles()){
     document.getElementById("shareBtn").style.display = "block";
@@ -1625,8 +1762,16 @@
     if(!file) return;
     var reader = new FileReader();
     reader.onload = function(){
-      importCSV(String(reader.result));
+      var text = String(reader.result).replace(/^﻿/, "");
       e.target.value = "";
+      if(/^\s*\{/.test(text)){
+        var obj = null;
+        try{ obj = JSON.parse(text); }catch(err){}
+        if(!obj){ alert("Il file JSON non è leggibile."); return; }
+        importFullBackup(obj);
+      } else {
+        importCSV(text);
+      }
     };
     reader.readAsText(file, "UTF-8");
   });
@@ -1738,7 +1883,7 @@
   var READS_KEY = "rotaia_g3reads_v1";
   function logRead(r){
     var reads = loadJSON(READS_KEY, []);
-    reads.push({ ts: Date.now(), date: todayStr(), km: r.km, soc: r.soc, mAh: r.mAh, volt: r.volt, plugged: r.plugged });
+    reads.push({ ts: Date.now(), date: todayStr(), km: r.km, soc: r.soc, mAh: r.mAh, fullmAh: r.fullmAh, volt: r.volt, plugged: r.plugged });
     if(reads.length > 300) reads = reads.slice(reads.length - 300);
     saveJSON(READS_KEY, reads);
   }
@@ -1861,11 +2006,23 @@
     return { setNote: setNote, box: box };
   }
 
+  // Km di spostamenti in monopattino inseriti a mano dopo l'ultima lettura: sono già nel
+  // contachilometri, quindi vanno tolti dal valore proposto. L'istante di creazione è nell'id.
+  // Un riferimento vecchio, senza istante, non permette il calcolo: nessuna sottrazione.
+  function idTs(id){ var n = parseInt(String(id).split("-")[0], 10); return isFinite(n) ? n : 0; }
+  function kmManualiDopo(ref){
+    if(typeof ref.ts !== "number") return 0;
+    return trips.filter(function(t){
+      return t.mezzo === "monopattino" && t.date >= ref.date && t.id !== ref.skipId && idTs(t.id) > ref.ts;
+    }).reduce(function(s,t){ return s + t.km; }, 0);
+  }
+
   var tripBle = mountBle("tripBle", "🛴 Leggi km dal monopattino", function(r, setNote){
     selectMezzo("monopattino");
     var ref = loadJSON(ODO_KEY, null);
+    var now = Date.now();
     if(!ref || typeof ref.km !== "number"){
-      saveJSON(ODO_KEY, { km: r.km, date: todayStr() });
+      saveJSON(ODO_KEY, { km: r.km, date: todayStr(), ts: now });
       document.getElementById("tripKm").value = "";
       clearFieldError("tripKm");
       setNote("Prima lettura: contachilometri impostato a " + fmtKm(r.km) + ". Da qui in avanti i km si compileranno da soli. Se hai già percorso dei km oggi prima di questa lettura, il contachilometri letto li include già: inseriscili qui sotto e tocca «Salva spostamento» per non perderli.");
@@ -1873,16 +2030,28 @@
     }
     var delta = Math.round((r.km - ref.km) * 10) / 10;
     if(delta < 0){
-      saveJSON(ODO_KEY, { km: r.km, date: todayStr() });
+      saveJSON(ODO_KEY, { km: r.km, date: todayStr(), ts: now });
       setNote("Il contachilometri (" + fmtKm(r.km) + ") è più basso del riferimento salvato: ho aggiornato il riferimento.");
       return;
     }
     if(delta === 0){ setNote("Nessun km nuovo dall'ultima lettura (" + fmtKm(r.km) + ")."); return; }
-    document.getElementById("tripKm").value = delta;
-    clearFieldError("tripKm");
-    pendingOdo = { km: r.km, date: todayStr() };
     var refDate = new Date(ref.date + "T00:00:00").toLocaleDateString("it-IT",{day:"numeric",month:"short"});
-    setNote("Contachilometri " + fmtKm(r.km) + ": +" + fmtKm(delta) + " dalla lettura del " + refDate + ". Salva lo spostamento per confermare.");
+    var manuali = Math.round(kmManualiDopo(ref) * 10) / 10;
+    var proposto = Math.round((delta - manuali) * 10) / 10;
+    if(proposto <= 0){
+      // Tutti i km nuovi risultano già inseriti a mano: niente da aggiungere, ma il riferimento va portato avanti.
+      saveJSON(ODO_KEY, { km: r.km, date: todayStr(), ts: now });
+      document.getElementById("tripKm").value = "";
+      clearFieldError("tripKm");
+      setNote("Contachilometri " + fmtKm(r.km) + ": +" + fmtKm(delta) + " dalla lettura del " + refDate + ", tutti già registrati a mano (" + fmtKm(manuali) + "). Non c'è nulla da aggiungere: ho aggiornato il riferimento.");
+      return;
+    }
+    document.getElementById("tripKm").value = proposto;
+    clearFieldError("tripKm");
+    pendingOdo = { km: r.km, date: todayStr(), ts: now };
+    setNote("Contachilometri " + fmtKm(r.km) + ": +" + fmtKm(delta) + " dalla lettura del " + refDate
+      + (manuali > 0 ? ", di cui " + fmtKm(manuali) + " già registrati a mano: propongo " + fmtKm(proposto) + "." : ".")
+      + " Salva lo spostamento per confermare.");
   });
 
   mountBle("chargeBle", "🛴 Leggi contachilometri dal monopattino", function(r, setNote){

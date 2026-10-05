@@ -1,4 +1,4 @@
-var CACHE_NAME = "rotaia-cache-v8";
+var CACHE_NAME = "rotaia-cache-v9";
 var CORE_ASSETS = [
   "./",
   "./index.html",
@@ -30,11 +30,14 @@ self.addEventListener("fetch", function(e){
   if(e.request.method !== "GET") return;
   var url = new URL(e.request.url);
 
-  // Pagina dell'app (navigazione): network-first, così le modifiche si vedono
-  // subito quando c'è rete; la cache serve solo come rete di sicurezza offline.
-  var isPage = e.request.mode === "navigate"
-    || (url.origin === self.location.origin && (url.pathname.endsWith("/") || url.pathname.endsWith("index.html")));
-  if(isPage){
+  // Pagina dell'app e script (index.html, g3ble.js...): network-first, così le modifiche
+  // si vedono subito quando c'è rete e pagina e script restano sempre della stessa versione;
+  // la cache serve solo come rete di sicurezza offline.
+  var sameOrigin = url.origin === self.location.origin;
+  var isNav = e.request.mode === "navigate"
+    || (sameOrigin && (url.pathname.endsWith("/") || url.pathname.endsWith("index.html")));
+  var isScript = sameOrigin && url.pathname.endsWith(".js");
+  if(isNav || isScript){
     e.respondWith(
       fetch(e.request).then(function(networkResp){
         if(networkResp && networkResp.ok){
@@ -44,7 +47,7 @@ self.addEventListener("fetch", function(e){
         return networkResp;
       }).catch(function(){
         return caches.match(e.request).then(function(cached){
-          return cached || caches.match("./index.html");
+          return cached || (isNav ? caches.match("./index.html") : undefined);
         });
       })
     );
