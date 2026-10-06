@@ -324,6 +324,23 @@ const G3BLE = (() => {
         await c.auth(pwd);
         st.set(K_KEY, c.serial + ":" + NB.toHex(pwd)); st.del(K_PENDING);
       }
+      if (mode === "diag") {
+        // Diagnostica: SOLA LETTURA. Nessuna scrittura, nessuna modifica di impostazioni.
+        const hex = d => Array.from(d, x => x.toString(16).padStart(2, "0")).join(" ");
+        const lines = ["Max G3 diagnostica " + new Date().toISOString(), "seriale " + c.serial];
+        const targets = [[BOARD_VCU, "VCU"], ...BMS_BOARDS.map(b => [b, "BMS?"])];
+        for (const [board, name] of targets) {
+          let fails = 0, got = 0;
+          for (let idx = 0x10; idx < 0xE0 && fails < 2; idx += 16) {
+            say("Diagnostica " + name + " 0x" + board.toString(16) + " @0x" + idx.toString(16) + "…");
+            try { const d = await c.read(board, idx, 16); lines.push(name + " 0x" + board.toString(16) + " @0x" + idx.toString(16) + ": " + hex(d)); got++; fails = 0; }
+            catch (e) { fails++; lines.push(name + " 0x" + board.toString(16) + " @0x" + idx.toString(16) + ": --"); }
+          }
+          if (!got) lines.push(name + " 0x" + board.toString(16) + ": nessuna risposta");
+        }
+        L("Diagnostica completata");
+        return { diag: lines.join("\n") };
+      }
       say("Lettura…");
       const kmRaw = await c.read(BOARD_VCU, 0x62, 4);
       const out = { serial: c.serial, km: Math.round(u32(kmRaw)) / 10, soc: null, plugged: null, charging: null, mAh: null, fullmAh: null, volt: null };

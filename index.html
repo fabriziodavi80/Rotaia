@@ -540,6 +540,13 @@
         <button type="button" class="ghost-btn" id="bleKeyForget">Dimentica chiave e monopattino</button>
         <button type="button" class="ghost-btn" id="bleLogCopy">Copia registro tecnico</button>
       </div>
+      <div class="be-detail" style="margin-top:14px;"><span>Lettura diagnostica (sola lettura)</span></div>
+      <div class="param-note" style="margin-top:6px;">Legge dal monopattino alcuni blocchi di dati grezzi, senza scrivere né cambiare nulla, per scoprire quali informazioni (temperatura, cicli, celle…) il tuo G3 fornisce. Dura circa un minuto. Poi copia il risultato e mandalo in chat.</div>
+      <div class="backup-btns" style="margin-top:8px;">
+        <button type="button" class="ghost-btn" id="bleDiagBtn">Avvia lettura diagnostica</button>
+        <button type="button" class="ghost-btn" id="bleDiagCopy" style="display:none;">Copia risultato</button>
+      </div>
+      <div class="param-note" id="bleDiagStatus"></div>
     </div>
 
     <details class="card">
@@ -2221,6 +2228,21 @@
     G3BLE.forgetKey(); renderBleKey(); showToast("Chiave dimenticata");
   });
   document.getElementById("bleLogCopy").addEventListener("click", function(){ copyText(G3BLE.log() || "(vuoto)", "✓ Registro copiato"); });
+  var diagText = "";
+  document.getElementById("bleDiagBtn").addEventListener("click", function(){
+    var btn = this, st = document.getElementById("bleDiagStatus");
+    btn.disabled = true; st.textContent = "Mi collego…";
+    G3BLE.readScooter("diag", function(m){ st.textContent = m; }, function(){})
+      .then(function(r){
+        diagText = r.diag; st.textContent = "Fatto. Tocca «Copia risultato» e incollalo in chat.";
+        document.getElementById("bleDiagCopy").style.display = "";
+      })
+      .catch(function(e){
+        st.textContent = (e && e.code === "needs_pair") ? "Prima fai una lettura normale per abbinare il monopattino." : "Non riuscita: " + ((e && e.message) || "errore");
+      })
+      .then(function(){ btn.disabled = false; });
+  });
+  document.getElementById("bleDiagCopy").addEventListener("click", function(){ copyText(diagText || "(vuoto)", "✓ Risultato copiato"); });
   if(typeof G3BLE !== "undefined") renderBleKey();
 
   // ---------- Init ----------
