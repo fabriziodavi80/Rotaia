@@ -328,10 +328,11 @@ const G3BLE = (() => {
         // Diagnostica: SOLA LETTURA. Nessuna scrittura, nessuna modifica di impostazioni.
         const hex = d => Array.from(d, x => x.toString(16).padStart(2, "0")).join(" ");
         const lines = ["Max G3 diagnostica " + new Date().toISOString(), "seriale " + c.serial];
-        const targets = [[BOARD_VCU, "VCU"], ...BMS_BOARDS.map(b => [b, "BMS?"])];
+        const knownB = parseInt(st.get(K_BMS) || "7", 16);
+        const targets = [[BOARD_VCU, "VCU"], [isFinite(knownB) ? knownB : 7, "BMS"]];
         for (const [board, name] of targets) {
           let fails = 0, got = 0;
-          for (let idx = 0x10; idx < 0xE0 && fails < 2; idx += 16) {
+          for (let idx = 0x10; idx < 0xE0 && fails < 4; idx += 8) { // indice = parola da 2 byte: 8 parole = 16 byte
             say("Diagnostica " + name + " 0x" + board.toString(16) + " @0x" + idx.toString(16) + "…");
             try { const d = await c.read(board, idx, 16); lines.push(name + " 0x" + board.toString(16) + " @0x" + idx.toString(16) + ": " + hex(d)); got++; fails = 0; }
             catch (e) { fails++; lines.push(name + " 0x" + board.toString(16) + " @0x" + idx.toString(16) + ": --"); }
@@ -345,9 +346,9 @@ const G3BLE = (() => {
           catch (e) { lines.push("0x" + board.toString(16) + " @0x" + idx.toString(16) + " len" + len + ": --"); }
         };
         say("Controllo registri noti…");
-        for (const [i, l] of [[0x62, 4], [0x62, 16], [0x55, 2], [0x55, 16], [0x1F, 2], [0x1C, 2]]) await probe(BOARD_VCU, i, l);
+        for (const [i, l] of [[0x62, 4], [0x55, 2], [0x1F, 2], [0x1C, 2]]) await probe(BOARD_VCU, i, l);
         const bb = parseInt(st.get(K_BMS) || "7", 16);
-        for (const [i, l] of [[0x8C, 2], [0x8C, 16], [0x5B, 2], [0x5B, 16], [0x13, 2], [0x13, 16]]) await probe(bb, i, l);
+        for (const [i, l] of [[0x8C, 2], [0x5B, 2], [0x13, 2]]) await probe(bb, i, l);
         L("Diagnostica completata");
         return { diag: lines.join("\n") };
       }
