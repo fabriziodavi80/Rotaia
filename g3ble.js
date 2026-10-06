@@ -338,6 +338,16 @@ const G3BLE = (() => {
           }
           if (!got) lines.push(name + " 0x" + board.toString(16) + ": nessuna risposta");
         }
+        // Controllo incrociato: i registri che l'app già usa, letti qui nello stesso momento, in piccolo e in blocco.
+        lines.push("--- registri noti ---");
+        const probe = async (board, idx, len) => {
+          try { const d = await c.read(board, idx, len); lines.push("0x" + board.toString(16) + " @0x" + idx.toString(16) + " len" + len + ": " + hex(d)); }
+          catch (e) { lines.push("0x" + board.toString(16) + " @0x" + idx.toString(16) + " len" + len + ": --"); }
+        };
+        say("Controllo registri noti…");
+        for (const [i, l] of [[0x62, 4], [0x62, 16], [0x55, 2], [0x55, 16], [0x1F, 2], [0x1C, 2]]) await probe(BOARD_VCU, i, l);
+        const bb = parseInt(st.get(K_BMS) || "7", 16);
+        for (const [i, l] of [[0x8C, 2], [0x8C, 16], [0x5B, 2], [0x5B, 16], [0x13, 2], [0x13, 16]]) await probe(bb, i, l);
         L("Diagnostica completata");
         return { diag: lines.join("\n") };
       }
