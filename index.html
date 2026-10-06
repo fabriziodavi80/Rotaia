@@ -1202,7 +1202,7 @@
     var realRow = document.getElementById("battRealRow");
     if(socRead && typeof socRead.soc === "number"){
       realRow.style.display = "flex";
-      var staleSoc = !isToday(socRead.ts);
+      var staleSoc = !isToday(socRead.ts) || charges.some(function(c){ return idTs(c.id) > socRead.ts; });
       var battReal = document.getElementById("battReal");
       battReal.textContent = socRead.soc + "% · " + fmtOra(socRead.ts) + (staleSoc ? " (non aggiornata)" : "");
       battReal.style.color = staleSoc ? "var(--gold)" : "";
@@ -2096,6 +2096,9 @@
   function stimaKmDaBatteria(){
     var socRead = loadJSON(SOC_KEY, null);
     if(!socRead || typeof socRead.soc !== "number" || !isToday(socRead.ts)) return null;
+    // Se dopo quella lettura hai registrato una ricarica, la % letta non vale più
+    var recharged = charges.some(function(c){ return idTs(c.id) > socRead.ts; });
+    if(recharged) return null;
     var m = consumoMisurato();
     if(!m.enough || !m.whKm) return null;
     return { km: (params.capacitaBatteria * 1000 * (socRead.soc/100)) / m.whKm, soc: socRead.soc };
