@@ -360,6 +360,7 @@ const G3BLE = (() => {
       if ((d = await opt(BOARD_VCU, 0x55, 2))) out.soc = u16(d);
       if ((d = await opt(BOARD_VCU, 0x1F, 2))) out.plugged = !!((d[0] >> 6) & 1);
       if ((d = await opt(BOARD_VCU, 0x1C, 2))) out.charging = !!((d[0] >> 2) & 1);
+      if ((d = await opt(BOARD_VCU, 0x66, 4))) out.rideS = u32(d); // secondi totali di guida
       // Scheda batteria: l'indirizzo dipende dal modello, si prova una breve lista e si ricorda quello giusto.
       const known = parseInt(st.get(K_BMS) || "", 16);
       const boards = isFinite(known) ? [known, ...BMS_BOARDS.filter(b => b !== known)] : BMS_BOARDS;
@@ -370,6 +371,16 @@ const G3BLE = (() => {
         out.volt = u16(v) / 100;
         if ((d = await opt(b, 0x5B, 2))) out.mAh = u16(d) * 10;
         if ((d = await opt(b, 0x13, 2))) out.fullmAh = u16(d) * 10;
+        // Dettagli di salute (registri verificati sul Max G3; indici in parole da 2 byte)
+        const s16 = x => (x & 0x8000) ? x - 0x10000 : x;
+        if ((d = await opt(b, 0x8D, 4))) { out.cur = s16(u16(d)) / 100; out.soh = u16(d.slice(2)); }
+        if ((d = await opt(b, 0x91, 2))) out.remFine = u16(d); // mAh residui con risoluzione fine
+        if ((d = await opt(b, 0x96, 14))) { out.temps = []; for (let i = 0; i + 1 < d.length; i += 2) { const t = u16(d.slice(i)); if (t > 0 && t < 120) out.temps.push(t); } }
+        const cells = [];
+        for (const [ci, cl] of [[0xA0, 16], [0xA8, 10]]) { if ((d = await opt(b, ci, cl))) for (let i = 0; i + 1 < d.length; i += 2) { const v = u16(d.slice(i)); if (v > 2000 && v < 4500) cells.push(v); } }
+        if (cells.length) out.cells = cells;
+        if ((d = await opt(b, 0x59, 2))) out.cycA = u16(d);
+        if ((d = await opt(b, 0x92, 2))) out.cycB = u16(d);
         break;
       }
       L("Letti: " + out.km + " km, " + out.soc + "%, " + out.mAh + " mAh, " + out.volt + " V, caricatore " + out.plugged + ", in carica " + out.charging);

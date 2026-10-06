@@ -338,6 +338,18 @@
       <div class="stat stat-wide teal"><div class="n mono" id="statStreak">0 giorni</div><div class="l">Serie in monopattino 🔥</div></div>
     </div>
 
+    <div class="card" id="healthCard" style="display:none;">
+      <h2>🩺 Stato batteria</h2>
+      <div class="be-detail"><span>Salute (BMS)</span><span class="mono" id="hSoh">—</span></div>
+      <div class="be-detail"><span>Capacità piena</span><span class="mono" id="hFull">—</span></div>
+      <div class="be-detail"><span>Carica residua</span><span class="mono" id="hRem">—</span></div>
+      <div class="be-detail"><span>Tensione pacco</span><span class="mono" id="hVolt">—</span></div>
+      <div class="be-detail"><span>Equilibrio celle</span><span class="mono" id="hCells">—</span></div>
+      <div class="be-detail"><span>Temperatura</span><span class="mono" id="hTemp">—</span></div>
+      <div class="be-detail" id="hRideRow"><span>Ore di guida · velocità media</span><span class="mono" id="hRide">—</span></div>
+      <div class="param-note" id="hNote"></div>
+    </div>
+
     <div class="card" id="batteryCard">
       <h2>🔋 Batteria monopattino</h2>
       <div class="bar-track"><div class="bar-fill" id="battBar" style="width:0%"></div></div>
@@ -583,6 +595,10 @@
         <div class="guide-item">
           <div class="guide-t">Obiettivo di risparmio mensile</div>
           <div class="guide-d">Se impostato sopra a 0€, in dashboard compare una barra di avanzamento con il risparmio netto accumulato nel mese in corso rispetto all'obiettivo.</div>
+        </div>
+        <div class="guide-item">
+          <div class="guide-t">Stato batteria</div>
+          <div class="guide-d">Dopo ogni lettura dal monopattino compare la scheda con salute dichiarata dal BMS, capacità piena e residua, tensione, temperatura e soprattutto lo scarto in mV tra la cella più carica e la più scarica (sotto 20 mV è ottimo). Le ore di guida e la velocità media vengono dal contatore interno. Il numero di cicli di carica non è ancora leggibile con certezza: l'app lo sta registrando in silenzio per capirlo.</div>
         </div>
         <div class="guide-item">
           <div class="guide-t">Prezzi e storico</div>
@@ -1193,6 +1209,35 @@
     } else realRow.style.display = "none";
     renderConsumo();
     renderChargeHistory();
+    renderHealth();
+  }
+
+  function renderHealth(){
+    var card = document.getElementById("healthCard");
+    var h = loadJSON(HEALTH_KEY, null);
+    if(!h || !h.ts){ card.style.display = "none"; return; }
+    card.style.display = "block";
+    function set(id, v){ document.getElementById(id).textContent = v; }
+    set("hSoh", typeof h.soh === "number" && h.soh > 0 && h.soh <= 100 ? h.soh + "%" : "—");
+    set("hFull", h.full ? (h.full/1000).toFixed(2).replace(".", ",") + " Ah" : "—");
+    set("hRem", h.rem ? (h.rem/1000).toFixed(2).replace(".", ",") + " Ah" + (h.full ? " (" + Math.round(h.rem/h.full*100) + "%)" : "") : "—");
+    set("hVolt", h.volt ? h.volt.toFixed(2).replace(".", ",") + " V" : "—");
+    if(h.cells && h.cells.length > 1){
+      var mn = Math.min.apply(null, h.cells), mx = Math.max.apply(null, h.cells), sp = mx - mn;
+      set("hCells", h.cells.length + " celle · scarto " + sp + " mV " + (sp <= 20 ? "✓" : sp <= 50 ? "(da tenere d'occhio)" : "(squilibrio)"));
+      document.getElementById("hCells").style.color = sp > 50 ? "var(--gold)" : "";
+    } else set("hCells", "—");
+    if(h.temps && h.temps.length){
+      var tmx = Math.max.apply(null, h.temps), tmn = Math.min.apply(null, h.temps);
+      set("hTemp", tmn === tmx ? tmx + " °C" : tmn + "–" + tmx + " °C");
+    } else set("hTemp", "—");
+    var rideRow = document.getElementById("hRideRow");
+    if(h.rideS > 0 && h.km > 0){
+      rideRow.style.display = "flex";
+      var hrs = h.rideS / 3600;
+      set("hRide", hrs.toFixed(1).replace(".", ",") + " h · " + (h.km / hrs).toFixed(1).replace(".", ",") + " km/h");
+    } else rideRow.style.display = "none";
+    set("hNote", "Dati dell'ultima lettura dal monopattino (" + fmtOra(h.ts) + (isToday(h.ts) ? "" : ", non di oggi") + "). Lo scarto tra la cella più carica e quella più scarica è l'indicatore di salute più utile: più resta basso nel tempo, meglio è.");
   }
 
   document.getElementById("syncAutonomiaBtn").addEventListener("click", function(){
@@ -2011,9 +2056,19 @@
 
   // ---------- Storico letture e consumo misurato ----------
   var READS_KEY = "rotaia_g3reads_v1";
+  var HEALTH_KEY = "rotaia_g3health_v1"; // ultima lettura dettagliata della batteria
   function logRead(r){
     var reads = loadJSON(READS_KEY, []);
-    reads.push({ ts: Date.now(), date: todayStr(), km: r.km, soc: r.soc, mAh: r.mAh, fullmAh: r.fullmAh, volt: r.volt, plugged: r.plugged });
+    var rec = { ts: Date.now(), date: todayStr(), km: r.km, soc: r.soc, mAh: r.mAh, fullmAh: r.fullmAh, volt: r.volt, plugged: r.plugged };
+    if(typeof r.soh === "number") rec.soh = r.soh;
+    if(typeof r.cycA === "number") rec.cycA = r.cycA;
+    if(typeof r.cycB === "number") rec.cycB = r.cycB;
+    if(typeof r.rideS === "number") rec.rideS = r.rideS;
+    reads.push(rec);
+    if(r.cells || r.temps || typeof r.soh === "number"){
+      saveJSON(HEALTH_KEY, { ts: rec.ts, soh: r.soh, cur: r.cur, volt: r.volt, cells: r.cells || null, temps: r.temps || null,
+        full: r.fullmAh, rem: (typeof r.remFine === "number" ? r.remFine * 1 : r.mAh), soc: r.soc, rideS: r.rideS, km: r.km, cycA: r.cycA, cycB: r.cycB });
+    }
     if(reads.length > 300) reads = reads.slice(reads.length - 300);
     saveJSON(READS_KEY, reads);
   }
