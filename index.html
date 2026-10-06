@@ -305,6 +305,11 @@
 <main>
 
   <section class="view active" id="view-dashboard">
+    <div class="reminder-card" id="backupReminder" style="display:none;">
+      <div class="reminder-text" id="backupReminderText"></div>
+      <button class="ghost-btn" id="backupNowBtn" type="button">Esporta ora</button>
+      <button class="ghost-btn" id="backupLaterBtn" type="button">Più tardi</button>
+    </div>
     <div class="reminder-card" id="reminderCard" style="display:none;">
       <div class="reminder-text">📍 Non hai ancora registrato nulla oggi.</div>
       <button class="ghost-btn" id="reminderBtn" type="button">Aggiungi ora</button>
@@ -461,6 +466,7 @@
       </div>
       <div class="param-note">Il backup completo contiene spostamenti, ricariche, tragitti salvati, parametri, storico delle letture Bluetooth e riferimento del contachilometri; è quello da usare se cambi telefono. La chiave di abbinamento del monopattino non è inclusa, per sicurezza: conservala a parte (Parametri → Monopattino via Bluetooth). Il CSV contiene solo gli spostamenti, con il punto e virgola come separatore, compatibile con Excel in formato italiano. Importando, gli elementi già presenti non vengono duplicati.</div>
       <div class="param-note" id="backupStatus"></div>
+      <div class="param-note" id="storageStatus"></div>
     </div>
   </section>
 
@@ -515,6 +521,8 @@
         <div class="derived-row tot r"><span>Auto, costo al km</span><span class="mono" id="dTotAuto">—</span></div>
       </div>
       <div class="param-note">Su percorso collinare l'autonomia reale è molto più bassa di quella dichiarata: puoi aggiornarla dalle ricariche registrate o dal consumo misurato con il Bluetooth (scheda Batteria in Dashboard).</div>
+      <button class="ghost-btn" id="repriceBtn">Applica i prezzi attuali a tutto lo storico</button>
+      <div class="param-note">Ogni spostamento ricorda i prezzi di benzina ed elettricità di quando l'hai registrato: se i prezzi cambiano, il risparmio passato non si altera. Il pulsante sopra ricalcola invece tutto con i prezzi attuali.</div>
       <button class="ghost-btn" id="resetBtn">Cancella tutti gli spostamenti e le ricariche</button>
     </div>
 
@@ -568,6 +576,10 @@
         <div class="guide-item">
           <div class="guide-t">Obiettivo di risparmio mensile</div>
           <div class="guide-d">Se impostato sopra a 0€, in dashboard compare una barra di avanzamento con il risparmio netto accumulato nel mese in corso rispetto all'obiettivo.</div>
+        </div>
+        <div class="guide-item">
+          <div class="guide-t">Prezzi e storico</div>
+          <div class="guide-d">Ogni spostamento salva i prezzi di benzina ed elettricità del momento: se cambiano, il risparmio già accumulato resta uguale e i nuovi prezzi valgono solo per i km futuri. Consumo e autonomia invece, se li correggi, si applicano anche al passato. Se vuoi ricalcolare tutto con i prezzi attuali, usa «Applica i prezzi attuali a tutto lo storico» in Parametri.</div>
         </div>
         <div class="guide-item">
           <div class="guide-t">Backup dei dati</div>
@@ -641,14 +653,37 @@
       return JSON.parse(raw);
     }catch(e){ return fallback; }
   }
+  // Se il browser rifiuta il salvataggio (spazio pieno, archiviazione bloccata) lo si dice subito:
+  // un fallimento silenzioso farebbe perdere dati senza che nessuno se ne accorga.
+  var lastSaveWarn = 0;
   function saveJSON(key, val){
-    try{ localStorage.setItem(key, JSON.stringify(val)); }catch(e){}
+    try{ localStorage.setItem(key, JSON.stringify(val)); return true; }
+    catch(e){
+      var now = Date.now();
+      if(now - lastSaveWarn > 8000){
+        lastSaveWarn = now;
+        showToast("⚠️ Salvataggio non riuscito: lo spazio del browser potrebbe essere pieno o bloccato. Esporta subito un backup.", 6500, true);
+      }
+      return false;
+    }
   }
 
   var params = Object.assign({}, DEFAULT_PARAMS, loadJSON(PARAMS_KEY, {}));
   var trips = loadJSON(TRIPS_KEY, []);
   var routes = loadJSON(ROUTES_KEY, []);
   var charges = loadJSON(CHARGES_KEY, []);
+
+  // Migrazione una tantum: gli spostamenti già registrati vengono "ancorati" ai prezzi attuali,
+  // da qui in poi il loro risparmio non cambia più se i prezzi cambiano.
+  (function(){
+    var SNAP_KEY = "rotaia_snap_v1";
+    try{
+      if(localStorage.getItem(SNAP_KEY)) return;
+      var ok = true;
+      if(trips.length){ trips.forEach(stampPrices); ok = saveJSON(TRIPS_KEY, trips); }
+      if(ok) localStorage.setItem(SNAP_KEY, "1");
+    }catch(e){}
+  })();
   var editingId = null;
   var editingChargeId = null;
   var historyFilters = { month: "all", mezzo: "all" };
@@ -661,13 +696,17 @@
   }
 
   var toastTimer = null;
-  function showToast(msg){
+  var warnUntil = 0;
+  function showToast(msg, ms, isWarn){
     var t = document.getElementById("toast");
     if(!t) return;
+    // un avviso di salvataggio fallito non deve essere coperto da un "✓ salvato" subito dopo
+    if(!isWarn && Date.now() < warnUntil) return;
+    if(isWarn) warnUntil = Date.now() + (ms || 2200);
     t.textContent = msg;
     t.classList.add("show");
     if(toastTimer) clearTimeout(toastTimer);
-    toastTimer = setTimeout(function(){ t.classList.remove("show"); }, 2200);
+    toastTimer = setTimeout(function(){ t.classList.remove("show"); }, ms || 2200);
   }
 
   function setFieldError(id, msg){
@@ -697,14 +736,32 @@
     };
   }
 
+  // Prezzi (benzina, elettricità) in vigore quando lo spostamento è stato registrato: il risparmio
+  // già accumulato non cambia se i prezzi cambiano dopo. Consumi e autonomia restano invece quelli
+  // attuali, perché sono stime che si affinano nel tempo (e correggerle migliora anche il passato).
+  function stampPrices(t){
+    if(typeof t.pb !== "number") t.pb = params.prezzoBenzina;
+    if(typeof t.pe !== "number") t.pe = params.prezzoElettrico;
+    return t;
+  }
+  function tripKmCosts(t){
+    var pb = typeof t.pb === "number" ? t.pb : params.prezzoBenzina;
+    var pe = typeof t.pe === "number" ? t.pe : params.prezzoElettrico;
+    var manut = params.manutenzioneAnnua / params.kmAnnui;
+    return {
+      scooter: (params.capacitaBatteria / params.autonomiaReale) * pe + manut,
+      auto: (params.consumoAuto/100) * pb
+    };
+  }
+
   // Come nel foglio Excel: risparmio = costo con l'altro mezzo - costo effettivo.
   // Con il monopattino è positivo; con l'auto è negativo (risparmio mancato).
   function tripCost(t){
-    var d = derivati();
+    var d = tripKmCosts(t);
     return t.km * (t.mezzo === "monopattino" ? d.scooter : d.auto);
   }
   function tripAltCost(t){
-    var d = derivati();
+    var d = tripKmCosts(t);
     return t.km * (t.mezzo === "monopattino" ? d.auto : d.scooter);
   }
   function tripSaving(t){ return tripAltCost(t) - tripCost(t); }
@@ -886,6 +943,7 @@
 
     document.getElementById("statStreak").textContent = scooterStreak() + " giorni";
 
+    renderBackupReminder();
     var reminderCard = document.getElementById("reminderCard");
     var loggedToday = trips.some(function(t){ return t.date === todayStr(); });
     reminderCard.style.display = loggedToday ? "none" : "flex";
@@ -1346,7 +1404,7 @@
       var t = trips.find(function(x){ return x.id === editingId; });
       if(t){ t.date = date; t.mezzo = mezzoSel; t.km = km; }
     } else {
-      newTrip = { id: Date.now()+"-"+Math.random().toString(36).slice(2,7), date: date, mezzo: mezzoSel, km: km };
+      newTrip = stampPrices({ id: Date.now()+"-"+Math.random().toString(36).slice(2,7), date: date, mezzo: mezzoSel, km: km });
       trips.push(newTrip);
     }
     trips.sort(function(a,b){ return a.date < b.date ? 1 : -1; });
@@ -1360,6 +1418,8 @@
   });
 
   // ---------- Tragitti salvati ----------
+  function escHtml(x){ return String(x==null?"":x).replace(/[&<>"']/g, function(c){ return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]; }); }
+
   function renderRoutes(){
     var wrap = document.getElementById("routesWrap");
     if(routes.length === 0){
@@ -1370,7 +1430,7 @@
     routes.forEach(function(r){
       var isScooter = r.mezzo === "monopattino";
       html += '<button type="button" class="route-chip '+(isScooter?"t":"r")+'" data-id="'+r.id+'">'
-        + (isScooter ? "🛴" : "🚗") + ' ' + r.label + ' · ' + r.km.toString().replace(".", ",") + ' km'
+        + (isScooter ? "🛴" : "🚗") + ' ' + escHtml(r.label) + ' · ' + r.km.toString().replace(".", ",") + ' km'
         + '<span class="route-del" data-id="'+r.id+'">×</span>'
         + '</button>';
     });
@@ -1386,7 +1446,7 @@
         }
         var r = routes.find(function(x){ return x.id === chip.getAttribute("data-id"); });
         if(!r) return;
-        trips.push({ id: Date.now()+"-"+Math.random().toString(36).slice(2,7), date: todayStr(), mezzo: r.mezzo, km: r.km });
+        trips.push(stampPrices({ id: Date.now()+"-"+Math.random().toString(36).slice(2,7), date: todayStr(), mezzo: r.mezzo, km: r.km }));
         trips.sort(function(a,b){ return a.date < b.date ? 1 : -1; });
         saveJSON(TRIPS_KEY, trips);
         showView("dashboard");
@@ -1400,7 +1460,7 @@
     if(!km || km <= 0){ alert("Inserisci prima i chilometri per salvare il tragitto."); return; }
     var label = prompt("Nome del tragitto (es. Casa-lavoro):", "");
     if(label === null) return;
-    label = label.trim() || "Tragitto";
+    label = cleanLabel(label);
     routes.push({ id: Date.now()+"-"+Math.random().toString(36).slice(2,7), label: label, mezzo: mezzoSel, km: km });
     saveJSON(ROUTES_KEY, routes);
     renderRoutes();
@@ -1594,8 +1654,58 @@
     }catch(e){ /* Web Share non disponibile su questo dispositivo */ }
   }
 
+  function renderStorageStatus(){
+    var el = document.getElementById("storageStatus");
+    if(!el) return;
+    try{
+      if(navigator.storage && navigator.storage.persisted){
+        navigator.storage.persisted().then(function(p){
+          el.textContent = p ? "Archiviazione protetta: il browser non cancellerà i dati automaticamente."
+            : "Archiviazione non garantita: il browser potrebbe cancellare i dati se serve spazio. Fai backup regolari.";
+          el.style.color = p ? "" : "var(--gold)";
+        }).catch(function(){});
+      }
+    }catch(e){}
+  }
+  try{
+    if(navigator.storage && navigator.storage.persist){
+      navigator.storage.persist().then(renderStorageStatus).catch(function(){});
+    }
+  }catch(e){}
+
+  var SNOOZE_KEY = "rotaia_backup_snooze_v1";
+  function renderBackupReminder(){
+    var card = document.getElementById("backupReminder");
+    if(!card) return;
+    var show = false, msg = "";
+    if(trips.length > 0){
+      var today = todayStr(), last = null, snooze = null;
+      try{ last = localStorage.getItem(BACKUP_KEY); snooze = localStorage.getItem(SNOOZE_KEY); }catch(e){}
+      var snoozed = snooze && snooze > today;
+      if(!snoozed){
+        if(last){
+          var g = daysBetween(last, today);
+          if(g >= 30){ show = true; msg = "💾 Ultimo backup " + g + " giorni fa. Conviene esportarlo di nuovo."; }
+        } else {
+          var dm = dataMinima();
+          if(dm && daysBetween(todayFromDate(dm), today) >= 7){ show = true; msg = "💾 Non hai ancora fatto un backup dei tuoi dati."; }
+        }
+      }
+    }
+    card.style.display = show ? "flex" : "none";
+    if(show) document.getElementById("backupReminderText").textContent = msg;
+  }
+  function todayFromDate(d){ return d.getFullYear() + "-" + String(d.getMonth()+1).padStart(2,"0") + "-" + String(d.getDate()).padStart(2,"0"); }
+  document.getElementById("backupNowBtn").addEventListener("click", function(){ exportFullBackup(); });
+  document.getElementById("backupLaterBtn").addEventListener("click", function(){
+    try{ localStorage.setItem(SNOOZE_KEY, shiftDateStr(todayStr(), 7)); }catch(e){}
+    renderBackupReminder();
+  });
+
   function renderBackupStatus(){
     var el = document.getElementById("backupStatus");
+    renderBackupReminder();
+    renderStorageStatus();
     if(!el) return;
     var last = localStorage.getItem(BACKUP_KEY);
     if(!last){
@@ -1645,7 +1755,7 @@
       var key = r.date+"|"+r.mezzo+"|"+r.km;
       if(existing[key]){ skipped++; return; }
       existing[key] = true;
-      trips.push({ id: Date.now()+"-"+Math.random().toString(36).slice(2,7), date:r.date, mezzo:r.mezzo, km:r.km });
+      trips.push(stampPrices({ id: Date.now()+"-"+Math.random().toString(36).slice(2,7), date:r.date, mezzo:r.mezzo, km:r.km }));
       added++;
     });
     trips.sort(function(a,b){ return a.date < b.date ? 1 : -1; });
@@ -1681,7 +1791,11 @@
       var id = validId(t.id) ? t.id : newId();
       if(have[id]) return;
       have[id] = true;
-      trips.push({ id:id, date:date, mezzo:mezzo, km:km }); added.trips++;
+      var nt = { id:id, date:date, mezzo:mezzo, km:km };
+      var pbv = Number(t.pb), pev = Number(t.pe);
+      if(t.pb != null && isFinite(pbv) && pbv > 0 && pbv < 100) nt.pb = pbv;
+      if(t.pe != null && isFinite(pev) && pev > 0 && pev < 100) nt.pe = pev;
+      trips.push(stampPrices(nt)); added.trips++;
     });
     trips.sort(function(a,b){ return a.date < b.date ? 1 : -1; });
 
@@ -1824,7 +1938,16 @@
     params.obiettivoMensile = (isFinite(goalVal) && goalVal >= 0) ? goalVal : 0;
     saveJSON(PARAMS_KEY, params);
     showView("dashboard");
-    showToast("✓ Parametri salvati");
+    showToast("✓ Parametri salvati · i nuovi prezzi valgono per i prossimi spostamenti");
+  });
+
+  document.getElementById("repriceBtn").addEventListener("click", function(){
+    if(!trips.length){ showToast("Nessuno spostamento da aggiornare"); return; }
+    if(!confirm("Ricalcolare tutto lo storico con i prezzi attuali (benzina " + params.prezzoBenzina + " €/l, elettricità " + params.prezzoElettrico + " €/kWh)? Il risparmio passato cambierà.")) return;
+    trips.forEach(function(t){ t.pb = params.prezzoBenzina; t.pe = params.prezzoElettrico; });
+    saveJSON(TRIPS_KEY, trips);
+    renderHistory(); renderDashboard();
+    showToast("✓ Storico ricalcolato con i prezzi attuali");
   });
 
   document.getElementById("resetBtn").addEventListener("click", function(){
