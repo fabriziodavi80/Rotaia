@@ -1220,7 +1220,18 @@
     function set(id, v){ document.getElementById(id).textContent = v; }
     set("hSoh", typeof h.soh === "number" && h.soh > 0 && h.soh <= 100 ? h.soh + "%" : "—");
     set("hFull", h.full ? (h.full/1000).toFixed(2).replace(".", ",") + " Ah" : "—");
-    set("hRem", h.rem ? (h.rem/1000).toFixed(2).replace(".", ",") + " Ah" + (h.full ? " (" + Math.round(h.rem/h.full*100) + "%)" : "") : "—");
+    // carica residua: si usa il registro che concorda con la % del monopattino (scarto max 15 punti);
+    // se nessuno concorda, la si ricava da % × capacità piena
+    var ah = function(x){ return (x/1000).toFixed(2).replace(".", ",") + " Ah"; };
+    var remTxt = "—";
+    if(h.full){
+      var hasSoc = typeof h.soc === "number" && h.soc >= 0 && h.soc <= 100;
+      var cand = [h.remB, h.rem].filter(function(x){ return typeof x === "number" && x > 0 && x <= h.full * 1.05; });
+      var ok = cand.filter(function(x){ return !hasSoc || Math.abs(x/h.full*100 - h.soc) <= 15; });
+      if(ok.length) remTxt = ah(ok[0]) + " (" + Math.round(ok[0]/h.full*100) + "%)";
+      else if(hasSoc) remTxt = "≈ " + ah(h.full * h.soc / 100) + " (" + h.soc + "%)";
+    } else if(h.rem) remTxt = ah(h.rem);
+    set("hRem", remTxt);
     set("hVolt", h.volt ? h.volt.toFixed(2).replace(".", ",") + " V" : "—");
     if(h.cells && h.cells.length > 1){
       var mn = Math.min.apply(null, h.cells), mx = Math.max.apply(null, h.cells), sp = mx - mn;
@@ -2067,7 +2078,7 @@
     reads.push(rec);
     if(r.cells || r.temps || typeof r.soh === "number"){
       saveJSON(HEALTH_KEY, { ts: rec.ts, soh: r.soh, cur: r.cur, volt: r.volt, cells: r.cells || null, temps: r.temps || null,
-        full: r.fullmAh, rem: (typeof r.remFine === "number" ? r.remFine * 1 : r.mAh), soc: r.soc, rideS: r.rideS, km: r.km, cycA: r.cycA, cycB: r.cycB });
+        full: r.fullmAh, rem: (typeof r.remFine === "number" ? r.remFine * 1 : r.mAh), remB: r.mAh, soc: r.soc, rideS: r.rideS, km: r.km, cycA: r.cycA, cycB: r.cycB });
     }
     if(reads.length > 300) reads = reads.slice(reads.length - 300);
     saveJSON(READS_KEY, reads);
