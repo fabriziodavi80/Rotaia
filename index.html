@@ -586,7 +586,7 @@
         </div>
         <div class="guide-item">
           <div class="guide-t">Due modi di stimare l'autonomia</div>
-          <div class="guide-d">La media dei cicli di ricarica assume di scaricare sempre a fondo prima di ricaricare: se carichi più spesso (buona abitudine per la salute della batteria), quella media risulta più bassa del reale. Il consumo misurato dal Bluetooth non ha questo limite, perché guarda l'energia e non la distanza tra due ricariche. Per questo, se oggi hai fatto una lettura e hai già un consumo misurato, "Km stimati alla prossima ricarica" usa la % di batteria letta oggi insieme al consumo misurato, invece della media dei cicli; altrimenti resta la media dei cicli (o il valore dichiarato, se non hai ancora registrato ricariche). Può capitare di vedere insieme due proposte di aggiornare l'autonomia nei Parametri, una dai cicli e una dal consumo misurato: sono due stime indipendenti, quella dal consumo misurato è in genere la più affidabile.</div>
+          <div class="guide-d">La media dei cicli di ricarica assume di scaricare sempre a fondo prima di ricaricare: se carichi più spesso (buona abitudine per la salute della batteria), quella media risulta più bassa del reale. Il consumo misurato dal Bluetooth non ha questo limite, perché guarda l'energia e non la distanza tra due ricariche. Per questo, se oggi hai fatto una lettura e hai già un consumo misurato, "Km stimati alla prossima ricarica" usa la % di batteria letta oggi insieme al consumo misurato, invece della media dei cicli; altrimenti resta la media dei cicli (o il valore dichiarato, se non hai ancora registrato ricariche). Appena hai almeno 5 km di consumo misurato, l'app usa solo quello (la riga «Autonomia reale» lo indica) e nasconde la proposta basata sui cicli, per non mostrarti due numeri in disaccordo; la proposta dai cicli torna solo finché il consumo misurato non è ancora disponibile.</div>
         </div>
         <div class="guide-item">
           <div class="guide-t">Serie monopattino (streak) 🔥</div>
@@ -1162,9 +1162,14 @@
       syncBtn.style.display = "none";
     } else {
       var kmSince = kmDaUltimaRicarica();
-      var autStimata = autReale !== null ? autReale : params.autonomiaReale;
+      // Il consumo misurato dalla batteria (almeno 5 km) è il dato più attendibile: ha la precedenza sui cicli di ricarica
+      var mis = consumoMisurato();
+      var autMisurata = (mis.enough && mis.whKm) ? params.capacitaBatteria * 1000 / mis.whKm : null;
+      var autStimata = autMisurata !== null ? autMisurata : (autReale !== null ? autReale : params.autonomiaReale);
       document.getElementById("battKmSince").textContent = fmtKm(kmSince);
-      document.getElementById("battAutonomia").textContent = autReale !== null
+      document.getElementById("battAutonomia").textContent = autMisurata !== null
+        ? fmtKm(autMisurata) + " (dal consumo misurato)"
+        : autReale !== null
         ? fmtKm(autReale) + " (" + chargeCycles().length + (chargeCycles().length===1 ? " ciclo registrato)" : " cicli registrati)")
         : fmtKm(params.autonomiaReale) + " (da Parametri; dalle ricariche serve un'altra ricarica)";
 
@@ -1191,7 +1196,7 @@
         noteEl.textContent = "";
       }
 
-      if(autReale !== null && Math.abs(autReale - params.autonomiaReale) >= 1){
+      if(autMisurata === null && autReale !== null && Math.abs(autReale - params.autonomiaReale) >= 1){
         syncBtn.style.display = "block";
         syncBtn.textContent = "Aggiorna parametro autonomia (" + Math.round(params.autonomiaReale) + " → " + Math.round(autReale) + " km)";
       } else {
