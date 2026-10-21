@@ -17,7 +17,7 @@ App personale (PWA, pagina unica) che confronta spostamenti in monopattino (Nine
 |---|---|
 | `index.html` | Tutta l'app (HTML, CSS, JS in un unico `<script>` finale, circa 2340 righe) |
 | `g3ble.js` | Comunicazione Bluetooth con il Max G3 (cifratura, abbinamento, lettura registri) |
-| `sw.js` | Service worker. `CACHE_NAME` attuale: `rotaia-cache-v18` |
+| `sw.js` | Service worker. `CACHE_NAME` attuale: `rotaia-cache-v19` |
 | `manifest.json`, `icon-192.png`, `icon-512.png`, `apple-touch-icon.png` | PWA |
 
 ### Funzioni principali
@@ -30,7 +30,7 @@ App personale (PWA, pagina unica) che confronta spostamenti in monopattino (Nine
 - **Lettura diagnostica** (Parametri, sola lettura): scarica blocchi di registri grezzi per la mappatura. Utile solo se serve scoprire nuovi registri.
 - **Backup:** esportazione completa JSON (spostamenti, ricariche, tragitti, parametri, letture, riferimento km), condivisione, import, CSV. Promemoria in Dashboard se non fai backup. Richiesta di archiviazione persistente al browser e avviso se il salvataggio fallisce.
 - **Prezzi bloccati:** ogni spostamento memorizza `pb` (benzina) e `pe` (elettricità) del momento. Pulsante in Parametri per riapplicare i prezzi attuali a tutto lo storico.
-- **Guida rapida** in Dashboard, mantenuta aggiornata a ogni funzione.
+- **Guida rapida** in Parametri, mantenuta aggiornata a ogni funzione.
 
 ### Come si calcola il risparmio
 - `tripSaving = costo alternativa − costo mezzo usato`: positivo per il monopattino, negativo per l'auto. Netto = somma di tutti, lordo = solo i km in monopattino.
@@ -85,7 +85,7 @@ Nel BMS i valori `0x15`..`0x1E` formano una tabella tensione/carica, non celle.
 
 ### Vincoli
 - **Data locale:** usare sempre `todayStr()` (data locale), mai `toISOString()`. Un bug UTC vicino alla mezzanotte in Italia è già stato corretto una volta.
-- **Service worker:** a ogni modifica ai file dell'app incrementare `CACHE_NAME` in `sw.js`. Pagina e script `.js` usano rete prima, cache poi.
+- **Service worker e versione:** a ogni modifica ai file dell'app incrementare `CACHE_NAME` in `sw.js` e allineare `APP_VERSION` e `APP_DATE` in `index.html` (la riga "Versione NN" in fondo a Parametri). Pagina e script `.js` usano rete prima, cache poi.
 - **Web Bluetooth:** funziona solo in Chrome/Android (vivo X300 Ultra) su connessione sicura (HTTPS). Non funziona su iPhone. Per l'abbinamento serve premere una volta il pulsante di accensione.
 - **SHU / app Segway:** il monopattino può essere abbinato a un'altra app; con SHU l'abbinamento dell'app può decadere e va rifatto. Velocità e regione non cambiano.
 - **Firmware:** non aggiornare il monopattino senza prima verificare che la lettura funzioni ancora dopo.

@@ -621,6 +621,7 @@
         </div>
       </div>
     </details>
+    <div class="param-note" id="appVersion" style="text-align:center;margin-top:18px;"></div>
   </section>
 
 </main>
@@ -2454,6 +2455,25 @@
       .then(function(){ btn.disabled = false; });
   });
   document.getElementById("bleDiagCopy").addEventListener("click", function(){ copyText(diagText || "(vuoto)", "✓ Risultato copiato"); });
+  // ---------- Versione ----------
+  // Da tenere uguale al numero di CACHE_NAME in sw.js (rotaia-cache-vNN) a ogni modifica.
+  var APP_VERSION = 19, APP_DATE = "21 ottobre 2026";
+  function renderVersion(){
+    var el = document.getElementById("appVersion");
+    var base = "Versione " + APP_VERSION + " · " + APP_DATE;
+    el.textContent = base;
+    // Se il service worker attivo ha una cache diversa, l'aggiornamento non è ancora completo
+    if(typeof caches === "undefined" || !caches.keys) return;
+    caches.keys().then(function(keys){
+      var nums = keys.map(function(k){ var m = /^rotaia-cache-v(\d+)$/.exec(k); return m ? +m[1] : null; })
+        .filter(function(n){ return n !== null; });
+      if(!nums.length) return;
+      var attiva = Math.max.apply(null, nums);
+      if(attiva !== APP_VERSION) el.textContent = base + " (copia offline: versione " + attiva + ", si aggiorna alla prossima apertura)";
+    }).catch(function(){});
+  }
+  renderVersion();
+
   if(typeof G3BLE !== "undefined") renderBleKey();
 
   // ---------- Init ----------
