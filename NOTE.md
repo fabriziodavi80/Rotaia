@@ -1,6 +1,6 @@
 # Max G3 Saving — note di passaggio per una nuova chat
 
-Aggiornato: 8 ottobre 2026. Leggere questo file prima di toccare il codice.
+Aggiornato: 21 ottobre 2026. Leggere questo file prima di toccare il codice.
 
 App personale (PWA, pagina unica) che confronta spostamenti in monopattino (Ninebot Max G3) e in auto, calcola il risparmio e legge i dati del monopattino via Bluetooth. Un solo utente, nessun server, nessun account.
 
@@ -17,7 +17,7 @@ App personale (PWA, pagina unica) che confronta spostamenti in monopattino (Nine
 |---|---|
 | `index.html` | Tutta l'app (HTML, CSS, JS in un unico `<script>` finale, circa 2340 righe) |
 | `g3ble.js` | Comunicazione Bluetooth con il Max G3 (cifratura, abbinamento, lettura registri) |
-| `sw.js` | Service worker. `CACHE_NAME` attuale: `rotaia-cache-v17` |
+| `sw.js` | Service worker. `CACHE_NAME` attuale: `rotaia-cache-v18` |
 | `manifest.json`, `icon-192.png`, `icon-512.png`, `apple-touch-icon.png` | PWA |
 
 ### Funzioni principali
@@ -25,7 +25,8 @@ App personale (PWA, pagina unica) che confronta spostamenti in monopattino (Nine
 - **Spostamenti:** inserimento manuale o da tragitti salvati (chip), modifica, storico per mese, import/export CSV.
 - **Batteria e ricariche:** scheda "Batteria monopattino" con km dall'ultima ricarica, autonomia reale, km stimati alla prossima ricarica, barra di carica. Ricariche registrate coi km totali del contachilometri.
 - **Bluetooth:** lettura di km totali, % batteria, cavo collegato, in carica, tensione, mAh residui e pieni. Un pulsante in Aggiungi compila i km dell'uscita (differenza rispetto all'ultima lettura meno i km già inseriti a mano). Alla prima lettura in assoluto imposta solo il riferimento, senza registrare km.
-- **Scheda "Stato batteria"** (dopo ogni lettura): salute del BMS, capacità piena, carica residua, tensione, scarto tra le 13 celle in mV, temperatura, ore di guida e velocità media.
+- **Scheda "Stato batteria"** (dopo ogni lettura): salute del BMS, capacità piena (con "reale" e usura % se un registro candidato scende), carica residua, tensione, scarto tra le 13 celle in mV, temperatura, ore di guida e velocità media, cicli di carica ("da confermare" finché non salgono a cavallo di una ricarica).
+- **Storia e allarmi batteria:** ogni lettura salva `cellD` (scarto celle) e `tMax`; grafico SVG dello scarto nel tempo (una lettura al giorno, ultime 60) con soglia tratteggiata. Avviso in scheda e toast dopo la lettura se scarto > 50 mV o temperatura ≥ 45 °C (`SOGLIA_CELLE_MV`, `SOGLIA_TEMP_C`).
 - **Lettura diagnostica** (Parametri, sola lettura): scarica blocchi di registri grezzi per la mappatura. Utile solo se serve scoprire nuovi registri.
 - **Backup:** esportazione completa JSON (spostamenti, ricariche, tragitti, parametri, letture, riferimento km), condivisione, import, CSV. Promemoria in Dashboard se non fai backup. Richiesta di archiviazione persistente al browser e avviso se il salvataggio fallisce.
 - **Prezzi bloccati:** ogni spostamento memorizza `pb` (benzina) e `pe` (elettricità) del momento. Pulsante in Parametri per riapplicare i prezzi attuali a tutto lo storico.
@@ -59,7 +60,9 @@ Board VCU `0x16`, BMS `0x07` (sul tuo G3). Gli indici sono parole da 2 byte: un 
 | mAh residui | BMS | `0x5B`, preciso `0x91` | `0x5B` × 10, `0x91` in mAh |
 | Temperature | BMS | `0x96`..`0x9C` | gradi diretti; 255 = sensore assente |
 | Celle (13) | BMS | `0xA0`..`0xAC` | mV |
-| Cicli di ricarica? | BMS | `0x59`, `0x92` | candidati non confermati, registrati in silenzio in `rotaia_g3reads_v1` |
+| Cicli di ricarica | BMS | `0x59` (`cycA`) | quasi certo: fermo a 6 dal 7 al 19/10, nessuna ricarica in mezzo. Conferma automatica in app (`cicliInfo`) |
+| Stato BMS (non cicli) | BMS | `0x92` (`cycB`) | oscilla 1-2 senza ricariche, 4 col cavo collegato: non è un contatore |
+| Capacità reale? | BMS | `0x5A` (`cap5A`), `0x8A` (`cap8A`) | letti e salvati dal 21/10; se scendono sotto `0x13` = usura (`capacitaReale`) |
 
 Nel BMS i valori `0x15`..`0x1E` formano una tabella tensione/carica, non celle.
 
@@ -89,23 +92,27 @@ Nel BMS i valori `0x15`..`0x1E` formano una tabella tensione/carica, non celle.
 - **Privacy:** tutto resta sul telefono. Non aggiungere account, server o statistiche.
 - **Il sandbox non raggiunge il monopattino:** i registri si scoprono solo tramite la lettura diagnostica fatta dall'utente.
 
+### Dati reali al 21 ottobre (dal backup)
+- Consumo misurato 17,4 Wh/km su 46 km (autonomia ≈ 34 km); dalla % batteria ≈ 35 km ogni 100%. Coerente: il parametro 36 km è leggermente ottimista.
+- Il consumo ora esclude anche le coppie di letture con cavo collegato o con una ricarica registrata in mezzo.
+- Corretto: l'importazione del backup scartava `soh`, `cycA`, `cycB`, `rideS` delle letture; ora conserva tutti i campi numerici facoltativi.
+
 ### Metodo di lavoro che funziona
 1. L'utente chiede "altre criticità/suggerimenti?", si elenca una proposta ordinata, risponde "Procedi".
 2. Si implementa, si controlla la sintassi (`node --check` sullo script estratto), si eseguono i test, si fa commit e push, si risponde in italiano in modo breve.
-3. Test: harness Node con DOM simulato in `/home/claude/harness*.js` (fuori dal repository, possono mancare in una nuova sessione; npm/jsdom non sono raggiungibili). Per ricrearli: leggere il `<script>` finale di `index.html`, simulare `document.getElementById`, `localStorage`, `G3BLE`, e verificare i casi toccati.
-4. Messaggio di commit con la riga `Co-Authored-By: Claude Sonnet 5.5` e il link di sessione, come da istruzioni della sessione.
+3. Test: harness Node con DOM simulato, fuori dal repository (sparisce tra sessioni; npm/jsdom non raggiungibili). Per ricrearlo: estrarre il `<script>` finale di `index.html`, sostituire il `})();` finale con un `window.__t={...}` che esporta le funzioni da provare, eseguirlo con `vm` simulando `document.getElementById` (oggetti creati al volo), `localStorage` (caricato da un backup JSON dell'utente) e `G3BLE`.
+4. Messaggio di commit con la riga `Co-Authored-By` e il link di sessione indicati dalle istruzioni della sessione corrente.
 5. Più sessioni possono lavorare sullo stesso repository: fare `git pull --rebase origin main` prima del push.
 
 ---
 
 ## 3. Prossimi passi
 
-1. **Scoprire il numero di cicli di carica.** Dopo la prossima ricarica completa, confrontare `cycA` (registro `0x59`) e `cycB` (registro `0x92`) nelle letture salvate (`rotaia_g3reads_v1`): quello che sale di 1 è il contatore. Poi mostrarlo in "Stato batteria". Se nessuno sale, rilanciare la lettura diagnostica e cercare altrove (zona `0xC0`..`0xDF` del BMS).
-2. **Capire se 12,75 Ah è la capacità di targa o quella reale.** Oggi i registri `0x13`, `0x5A`, `0x8A` coincidono sempre. Se nelle settimane successive `0x5A` scende mentre gli altri restano uguali, `0x5A` è la capacità reale e permette di calcolare l'usura.
-3. **Storia di "Stato batteria".** Salvare già ora (nelle letture) scarto celle, temperatura massima e salute, poi mostrare un piccolo andamento nel tempo per vedere l'invecchiamento. Il valore principale è lo scarto tra le celle, oggi 3 mV.
-4. **Verificare il consumo misurato su più giorni.** Controllare che i Wh/km non siano falsati da letture a cavallo di una ricarica o da cavo collegato, e che il parametro autonomia resti coerente (oggi 36 km nei Parametri contro circa 35 dal consumo).
-5. **Idee non ancora proposte all'utente:** esportazione/condivisione del grafico mensile, promemoria "leggi dal monopattino" a fine giornata, confronto tra mesi, soglia di allarme quando lo scarto celle supera 50 mV o la temperatura è alta.
-6. **Pulizia (bassa priorità):** `/home/claude/tracker-app.html` è una copia di lavoro di `index.html` fuori dal repository; si può ignorare. La lettura diagnostica in Parametri si può nascondere dietro un tocco prolungato quando la mappa dei registri sarà considerata chiusa.
+1. **Confermare i cicli:** alla prossima lettura dopo la ricarica del 19/10, `cycA` dovrebbe passare da 6 a 7 e la scheda mostrerà il numero senza "(da confermare)". Se dopo 3 ricariche non sale mai, la riga sparisce da sola: allora cercare con la lettura diagnostica nella zona `0xC0`..`0xDF` del BMS.
+2. **Capacità reale:** controllare nei backup futuri se `cap5A` o `cap8A` scendono sotto `fullmAh`. Finché coincidono la scheda non mostra nulla di più.
+3. **Autonomia:** il consumo misurato (≈ 34 km) è già usato per la barra; valutare con l'utente se allineare il parametro (36 km), che pesa sul costo al km anche del passato.
+4. **Idee non ancora proposte all'utente:** promemoria "leggi dal monopattino" a fine giornata, confronto tra mesi, esportazione/condivisione del grafico mensile.
+5. **Pulizia (bassa priorità):** la lettura diagnostica in Parametri si può nascondere dietro un tocco prolungato quando la mappa dei registri sarà considerata chiusa.
 
 ### Avvio rapido per la nuova chat
 - Clonare `fabriziodavi80/Rotaia`, leggere questo file e `index.html` (cercare `renderBattery`, `renderHealth`, `consumoMisurato`, `importFullBackup`).

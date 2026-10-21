@@ -381,6 +381,9 @@ const G3BLE = (() => {
         if (cells.length) out.cells = cells;
         if ((d = await opt(b, 0x59, 2))) out.cycA = u16(d);
         if ((d = await opt(b, 0x92, 2))) out.cycB = u16(d);
+        // Candidati "capacità reale": oggi coincidono con 0x13; se uno scende nel tempo misura l'usura.
+        if ((d = await opt(b, 0x5A, 2))) out.cap5A = u16(d) * 10;
+        if ((d = await opt(b, 0x8A, 2))) out.cap8A = u16(d) * 10;
         break;
       }
       L("Letti: " + out.km + " km, " + out.soc + "%, " + out.mAh + " mAh, " + out.volt + " V, caricatore " + out.plugged + ", in carica " + out.charging);

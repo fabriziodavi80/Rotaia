@@ -103,6 +103,10 @@
   .bar-fill{ height:100%; background:var(--teal); border-radius:5px; transition:width .4s ease; box-shadow:0 0 10px var(--teal-glow); }
   .be-detail{ display:flex; justify-content:space-between; font-size:12px; color:var(--ink-60); margin-top:10px; }
   .be-detail .mono{ color:var(--ink); }
+  .h-alert{ margin-top:12px; padding:10px 12px; border-radius:10px; background:var(--gold-soft); color:var(--ink); font-size:12px; line-height:1.5; }
+  .h-hist{ margin-top:14px; }
+  .h-hist-title{ font-size:12px; color:var(--ink-60); margin-bottom:6px; }
+  .h-hist svg{ display:block; width:100%; height:70px; }
   .breakeven > :first-child{ margin-top:0; }
   #grossRow{ margin-bottom:12px; padding-bottom:12px; border-bottom:1px solid var(--ink-10); }
   .paid-off{ margin-top:10px; font-size:13px; color:var(--gold); font-weight:600; text-shadow:0 0 14px var(--gold-soft); }
@@ -347,6 +351,13 @@
       <div class="be-detail"><span>Equilibrio celle</span><span class="mono" id="hCells">—</span></div>
       <div class="be-detail"><span>Temperatura</span><span class="mono" id="hTemp">—</span></div>
       <div class="be-detail" id="hRideRow"><span>Ore di guida · velocità media</span><span class="mono" id="hRide">—</span></div>
+      <div class="be-detail" id="hCycRow" style="display:none;"><span>Cicli di carica</span><span class="mono" id="hCyc">—</span></div>
+      <div class="h-alert" id="hAlert" style="display:none;"></div>
+      <div class="h-hist" id="hHist" style="display:none;">
+        <div class="h-hist-title">Scarto tra le celle nel tempo</div>
+        <div id="hHistChart"></div>
+        <div class="param-note" id="hHistNote" style="margin-top:6px;"></div>
+      </div>
       <div class="param-note" id="hNote"></div>
     </div>
 
@@ -598,7 +609,7 @@
         </div>
         <div class="guide-item">
           <div class="guide-t">Stato batteria</div>
-          <div class="guide-d">Dopo ogni lettura dal monopattino compare la scheda con salute dichiarata dal BMS, capacità piena e residua, tensione, temperatura e soprattutto lo scarto in mV tra la cella più carica e la più scarica (sotto 20 mV è ottimo). Le ore di guida e la velocità media vengono dal contatore interno. Il numero di cicli di carica non è ancora leggibile con certezza: l'app lo sta registrando in silenzio per capirlo.</div>
+          <div class="guide-d">Dopo ogni lettura dal monopattino compare la scheda con salute dichiarata dal BMS, capacità piena e residua, tensione, temperatura e soprattutto lo scarto in mV tra la cella più carica e la più scarica (sotto 20 mV è ottimo). Le ore di guida e la velocità media vengono dal contatore interno. Sotto c'è l'andamento dello scarto tra le celle nel tempo (una lettura al giorno basta): se supera 50 mV o la batteria arriva a 45 °C compare un avviso. I cicli di carica restano "da confermare" finché una lettura dopo una ricarica registrata non mostra il contatore salito di uno.</div>
         </div>
         <div class="guide-item">
           <div class="guide-t">Prezzi e storico</div>
@@ -1224,7 +1235,9 @@
     card.style.display = "block";
     function set(id, v){ document.getElementById(id).textContent = v; }
     set("hSoh", typeof h.soh === "number" && h.soh > 0 && h.soh <= 100 ? h.soh + "%" : "—");
-    set("hFull", h.full ? (h.full/1000).toFixed(2).replace(".", ",") + " Ah" : "—");
+    var capR = capacitaReale();
+    set("hFull", h.full ? (h.full/1000).toFixed(2).replace(".", ",") + " Ah"
+      + (capR ? " · reale " + (capR.mAh/1000).toFixed(2).replace(".", ",") + " Ah (−" + capR.usura.toFixed(1).replace(".", ",") + "%)" : "") : "—");
     // carica residua: si usa il registro che concorda con la % del monopattino (scarto max 15 punti);
     // se nessuno concorda, la si ricava da % × capacità piena
     var ah = function(x){ return (x/1000).toFixed(2).replace(".", ",") + " Ah"; };
@@ -1253,7 +1266,113 @@
       var hrs = h.rideS / 3600;
       set("hRide", hrs.toFixed(1).replace(".", ",") + " h · " + (h.km / hrs).toFixed(1).replace(".", ",") + " km/h");
     } else rideRow.style.display = "none";
+
+    var cyc = cicliInfo(), cycRow = document.getElementById("hCycRow");
+    if(cyc && !cyc.scartato){
+      cycRow.style.display = "flex";
+      set("hCyc", cyc.n + (cyc.confermato ? "" : " (da confermare)"));
+    } else cycRow.style.display = "none";
+
+    var tMax = (h.temps && h.temps.length) ? Math.max.apply(null, h.temps) : null;
+    var cellD = (h.cells && h.cells.length > 1) ? Math.max.apply(null, h.cells) - Math.min.apply(null, h.cells) : null;
+    var al = healthAlarms(cellD, tMax), alEl = document.getElementById("hAlert");
+    if(al.length){ alEl.style.display = "block"; alEl.textContent = "⚠️ " + al.join(" "); }
+    else alEl.style.display = "none";
+
+    renderHealthHistory(h);
     set("hNote", "Dati dell'ultima lettura dal monopattino (" + fmtOra(h.ts) + (isToday(h.ts) ? "" : ", non di oggi") + "). Lo scarto tra la cella più carica e quella più scarica è l'indicatore di salute più utile: più resta basso nel tempo, meglio è.");
+  }
+
+  // Soglie: scarto celle oltre 50 mV = squilibrio; batteria a 45 °C o più = calda.
+  var SOGLIA_CELLE_MV = 50, SOGLIA_TEMP_C = 45;
+  function healthAlarms(cellD, tMax){
+    var out = [];
+    if(typeof cellD === "number" && cellD > SOGLIA_CELLE_MV)
+      out.push("Scarto tra le celle di " + cellD + " mV: oltre " + SOGLIA_CELLE_MV + " mV le celle non sono più bilanciate. Fai una ricarica completa al 100% e lascia il caricatore collegato ancora un'ora, poi rileggi.");
+    if(typeof tMax === "number" && tMax >= SOGLIA_TEMP_C)
+      out.push("Batteria a " + tMax + " °C: lasciala raffreddare prima di ricaricare e non tenerla al sole.");
+    return out;
+  }
+
+  function readsSorted(){
+    return loadJSON(READS_KEY, []).slice().sort(function(a,b){ return a.ts - b.ts; });
+  }
+
+  // Contatore dei cicli: registro BMS 0x59 (cycA). Il 0x92 (cycB) scende e sale senza ricariche:
+  // non è un contatore. cycA è confermato quando sale a cavallo di una ricarica registrata;
+  // se dopo 3 ricariche non è mai salito, non è il contatore e la riga sparisce.
+  function cicliInfo(){
+    var rs = readsSorted().filter(function(r){ return typeof r.cycA === "number"; });
+    if(!rs.length) return null;
+    var provate = 0, confermato = false;
+    chargesSorted().forEach(function(c){
+      var ct = idTs(c.id), prima = null, dopo = null;
+      rs.forEach(function(r){ if(r.ts < ct) prima = r; else if(!dopo && r.ts > ct) dopo = r; });
+      if(!prima || !dopo) return;
+      provate++;
+      if(dopo.cycA > prima.cycA) confermato = true;
+    });
+    return { n: rs[rs.length-1].cycA, confermato: confermato, provate: provate, scartato: !confermato && provate >= 3 };
+  }
+
+  // Capacità reale: se uno dei registri candidati (0x5A, 0x8A) scende sotto la capacità di targa
+  // (0x13) di almeno l'1%, è la capacità effettiva e la differenza è l'usura.
+  function capacitaReale(){
+    var rs = readsSorted();
+    for(var i=rs.length-1;i>=0;i--){
+      var r = rs[i];
+      if(!r.fullmAh || (typeof r.cap5A !== "number" && typeof r.cap8A !== "number")) continue;
+      var c = Math.min(typeof r.cap5A === "number" ? r.cap5A : Infinity, typeof r.cap8A === "number" ? r.cap8A : Infinity);
+      if(c < r.fullmAh * 0.99 && c > r.fullmAh * 0.5) return { mAh: c, usura: (1 - c / r.fullmAh) * 100 };
+      return null;
+    }
+    return null;
+  }
+
+  function renderHealthHistory(h){
+    var box = document.getElementById("hHist");
+    var pts = readsSorted().filter(function(r){ return typeof r.cellD === "number"; })
+      .map(function(r){ return { ts: r.ts, v: r.cellD, t: r.tMax }; });
+    // l'ultima lettura dettagliata salvata prima di questa versione non aveva cellD nelle letture
+    if(h && h.cells && h.cells.length > 1 && !pts.some(function(p){ return p.ts === h.ts; })){
+      pts.push({ ts: h.ts, v: Math.max.apply(null, h.cells) - Math.min.apply(null, h.cells),
+        t: (h.temps && h.temps.length) ? Math.max.apply(null, h.temps) : undefined });
+      pts.sort(function(a,b){ return a.ts - b.ts; });
+    }
+    // una lettura al giorno (l'ultima): più letture ravvicinate non aggiungono informazione
+    var perDay = {};
+    pts.forEach(function(p){ var d = new Date(p.ts); perDay[d.getFullYear()+"-"+d.getMonth()+"-"+d.getDate()] = p; });
+    pts = Object.keys(perDay).map(function(k){ return perDay[k]; }).sort(function(a,b){ return a.ts - b.ts; }).slice(-60);
+    if(pts.length < 2){
+      box.style.display = pts.length === 1 ? "block" : "none";
+      document.getElementById("hHistChart").innerHTML = "";
+      document.getElementById("hHistNote").textContent = pts.length === 1
+        ? "L'andamento comparirà dalla lettura di un altro giorno. Una lettura al giorno basta."
+        : "";
+      return;
+    }
+    box.style.display = "block";
+    var W = 300, H = 70, pad = 6;
+    var maxV = Math.max(SOGLIA_CELLE_MV + 10, Math.max.apply(null, pts.map(function(p){ return p.v; })));
+    var t0 = pts[0].ts, t1 = pts[pts.length-1].ts, span = Math.max(1, t1 - t0);
+    var x = function(ts){ return pad + (ts - t0) / span * (W - 2*pad); };
+    var y = function(v){ return H - pad - v / maxV * (H - 2*pad); };
+    var line = pts.map(function(p,i){ return (i ? "L" : "M") + x(p.ts).toFixed(1) + " " + y(p.v).toFixed(1); }).join(" ");
+    var ys = y(SOGLIA_CELLE_MV).toFixed(1);
+    var dots = pts.map(function(p){
+      return '<circle cx="'+x(p.ts).toFixed(1)+'" cy="'+y(p.v).toFixed(1)+'" r="2.5" fill="'+(p.v > SOGLIA_CELLE_MV ? "var(--gold)" : "var(--teal)")+'"/>';
+    }).join("");
+    document.getElementById("hHistChart").innerHTML =
+      '<svg viewBox="0 0 '+W+' '+H+'" preserveAspectRatio="none" role="img" aria-label="Scarto tra le celle nel tempo">'
+      + '<line x1="'+pad+'" x2="'+(W-pad)+'" y1="'+ys+'" y2="'+ys+'" stroke="var(--gold)" stroke-width="1" stroke-dasharray="4 4" vector-effect="non-scaling-stroke"/>'
+      + '<path d="'+line+'" fill="none" stroke="var(--teal)" stroke-width="2" vector-effect="non-scaling-stroke"/>'
+      + dots + '</svg>';
+    var vs = pts.map(function(p){ return p.v; }), mn = Math.min.apply(null, vs), mx = Math.max.apply(null, vs);
+    var ts = pts.filter(function(p){ return typeof p.t === "number"; }).map(function(p){ return p.t; });
+    var dal = new Date(t0).toLocaleDateString("it-IT", { day:"numeric", month:"short" });
+    document.getElementById("hHistNote").textContent = pts.length + " giorni dal " + dal + ": scarto tra " + mn + " e " + mx + " mV"
+      + (ts.length ? ", temperatura massima " + Math.max.apply(null, ts) + " °C" : "")
+      + ". La linea tratteggiata è la soglia di " + SOGLIA_CELLE_MV + " mV.";
   }
 
   document.getElementById("syncAutonomiaBtn").addEventListener("click", function(){
@@ -1894,8 +2013,13 @@
     arr(d.reads).forEach(function(r){
       if(!r || typeof r.ts !== "number" || !isFinite(r.ts) || typeof r.km !== "number" || !isFinite(r.km) || have[r.ts]) return;
       have[r.ts] = true;
-      reads.push({ ts:r.ts, date:normalizeDate(r.date) || todayStr(), km:r.km, soc:numOrNull(r.soc), mAh:numOrNull(r.mAh),
-        fullmAh:numOrNull(r.fullmAh), volt:numOrNull(r.volt), plugged: r.plugged === true ? true : r.plugged === false ? false : null });
+      var rec = { ts:r.ts, date:normalizeDate(r.date) || todayStr(), km:r.km, soc:numOrNull(r.soc), mAh:numOrNull(r.mAh),
+        fullmAh:numOrNull(r.fullmAh), volt:numOrNull(r.volt), plugged: r.plugged === true ? true : r.plugged === false ? false : null };
+      // campi facoltativi (salute, cicli, ore di guida, storia): solo se numeri validi
+      ["soh","cycA","cycB","rideS","cap5A","cap8A","cellD","tMax"].forEach(function(k){
+        if(typeof r[k] === "number" && isFinite(r[k])) rec[k] = r[k];
+      });
+      reads.push(rec);
       added.reads++;
     });
     reads.sort(function(a,b){ return a.ts - b.ts; });
@@ -2080,6 +2204,11 @@
     if(typeof r.cycA === "number") rec.cycA = r.cycA;
     if(typeof r.cycB === "number") rec.cycB = r.cycB;
     if(typeof r.rideS === "number") rec.rideS = r.rideS;
+    if(typeof r.cap5A === "number") rec.cap5A = r.cap5A;
+    if(typeof r.cap8A === "number") rec.cap8A = r.cap8A;
+    // Per la storia di "Stato batteria": scarto tra le celle e temperatura massima
+    if(r.cells && r.cells.length > 1) rec.cellD = Math.max.apply(null, r.cells) - Math.min.apply(null, r.cells);
+    if(r.temps && r.temps.length) rec.tMax = Math.max.apply(null, r.temps);
     reads.push(rec);
     if(r.cells || r.temps || typeof r.soh === "number"){
       saveJSON(HEALTH_KEY, { ts: rec.ts, soh: r.soh, cur: r.cur, volt: r.volt, cells: r.cells || null, temps: r.temps || null,
@@ -2092,10 +2221,15 @@
   // in cui i km sono aumentati e l'energia è diminuita (niente ricarica in mezzo).
   function consumoMisurato(){
     var reads = loadJSON(READS_KEY, []).slice().sort(function(a,b){ return a.ts - b.ts; });
+    var chargeTs = charges.map(function(c){ return idTs(c.id); });
     var wh = 0, km = 0, n = 0;
     for(var i=1;i<reads.length;i++){
       var a = reads[i-1], b = reads[i];
       if(typeof a.mAh !== "number" || typeof b.mAh !== "number" || !a.volt || !b.volt) continue;
+      // col caricatore collegato a uno dei due estremi, o con una ricarica registrata in mezzo,
+      // l'energia non è solo quella consumata guidando
+      if(a.plugged === true || b.plugged === true) continue;
+      if(chargeTs.some(function(t){ return t > a.ts && t < b.ts; })) continue;
       var dkm = b.km - a.km, dAh = (a.mAh - b.mAh) / 1000;
       if(dkm < 0.3 || dAh <= 0) continue;
       var pairWh = dAh * (a.volt + b.volt) / 2;
@@ -2189,6 +2323,9 @@
           onResult(r, setNote);
           if(boxId !== "chargeBle") offerCharge(box, r);
           renderBattery();
+          var al = healthAlarms(r.cells && r.cells.length > 1 ? Math.max.apply(null, r.cells) - Math.min.apply(null, r.cells) : null,
+            r.temps && r.temps.length ? Math.max.apply(null, r.temps) : null);
+          if(al.length) showToast("⚠️ Batteria: controlla «Stato batteria» in Dashboard", 5000, true);
         })
         .catch(function(e){
           if(e && e.code === "needs_pair"){
