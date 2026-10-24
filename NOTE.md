@@ -1,6 +1,6 @@
 # Max G3 Saving — note di passaggio per una nuova chat
 
-Aggiornato: 21 ottobre 2026. Leggere questo file prima di toccare il codice.
+Aggiornato: 24 ottobre 2026. Leggere questo file prima di toccare il codice.
 
 App personale (PWA, pagina unica) che confronta spostamenti in monopattino (Ninebot Max G3) e in auto, calcola il risparmio e legge i dati del monopattino via Bluetooth. Un solo utente, nessun server, nessun account.
 
@@ -17,7 +17,7 @@ App personale (PWA, pagina unica) che confronta spostamenti in monopattino (Nine
 |---|---|
 | `index.html` | Tutta l'app (HTML, CSS, JS in un unico `<script>` finale, circa 2340 righe) |
 | `g3ble.js` | Comunicazione Bluetooth con il Max G3 (cifratura, abbinamento, lettura registri) |
-| `sw.js` | Service worker. `CACHE_NAME` attuale: `rotaia-cache-v19` |
+| `sw.js` | Service worker. `CACHE_NAME` attuale: `rotaia-cache-v20` |
 | `manifest.json`, `icon-192.png`, `icon-512.png`, `apple-touch-icon.png` | PWA |
 
 ### Funzioni principali
@@ -80,6 +80,7 @@ Nel BMS i valori `0x15`..`0x1E` formano una tabella tensione/carica, non celle.
 - **Prezzi bloccati per spostamento; consumo e autonomia retroattivi.** Il pulsante "Applica i prezzi attuali a tutto lo storico" è l'unico modo di cambiare i prezzi del passato.
 - **Il consumo misurato dalla batteria batte la media dei cicli** per l'autonomia (vedi sopra).
 - **Importazione prudente:** gli id validi si conservano, quelli non validi si rigenerano; nomi dei tragitti ripuliti (`cleanLabel`) e protetti nel rendering (`escHtml`); parametri validati uno a uno; la chiave Bluetooth non entra nel backup.
+- **Giorno dei km letti via Bluetooth:** se l'ultima lettura (`ref.date` in `rotaia_odo_v1`) è di un giorno precedente, `pendingOdo.needDay` blocca il salvataggio finché non si sceglie il giorno (pulsanti Oggi/Ieri/… fino a 7 giorni, o campo Data). Il monopattino non ha un registro con i km per giorno.
 - **Rilevamento "km già inseriti a mano":** l'istante di creazione è nell'id (`Date.now()-xxxxx`) e serve per sottrarre i km manuali dalla proposta Bluetooth.
 - **"Stato batteria":** per ora solo ultima lettura; nessuna storia dei valori e nessun grafico.
 

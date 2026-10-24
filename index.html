@@ -223,6 +223,9 @@
   .ble-key{ user-select:all; -webkit-user-select:all; font-family:"IBM Plex Mono", ui-monospace, monospace; font-size:12px; overflow-wrap:anywhere; color:var(--ink); }
   textarea.ble-key-in{ width:100%; min-height:60px; padding:10px 12px; border-radius:8px; border:1px solid var(--ink-10); background:var(--bg); color:var(--ink); font:13px "IBM Plex Mono", ui-monospace, monospace; }
   .backup-btns .ghost-btn{ margin-top:0; }
+  .ble-days{ display:flex; flex-wrap:wrap; gap:8px; margin-top:10px; }
+  .ble-days .route-chip{ padding:8px 14px; }
+  .ble-days .route-chip.on{ background:var(--teal-soft); border-color:var(--teal); color:var(--teal-ink); font-weight:600; }
 
   .routes-wrap{ display:flex; flex-wrap:wrap; gap:8px; }
   .route-chip{
@@ -585,7 +588,7 @@
         </div>
         <div class="guide-item">
           <div class="guide-t">Lettura dal monopattino 🛴</div>
-          <div class="guide-d">Con il monopattino acceso e SHU chiusa, «Leggi km dal monopattino» legge il contachilometri e compila i km fatti dall'ultima lettura. La prima volta salva solo il punto di partenza, perché non c'è ancora un riferimento precedente con cui calcolare la differenza: se hai già percorso km oggi prima di questa prima lettura, il campo km resta vuoto e vanno inseriti a mano (il contachilometri letto li include già). Se dopo l'ultima lettura hai registrato spostamenti in monopattino a mano, l'app li toglie da sola dal valore proposto, così non vengono contati due volte (vale dalla seconda lettura confermata in poi). In «Registra ricarica» lo stesso pulsante compila il contachilometri; se leggi con il caricatore collegato, l'app ti propone di registrare la ricarica. La prima lettura richiede l'abbinamento: premi una volta il pulsante di accensione quando l'app lo chiede.</div>
+          <div class="guide-d">Con il monopattino acceso e SHU chiusa, «Leggi km dal monopattino» legge il contachilometri e compila i km fatti dall'ultima lettura. La prima volta salva solo il punto di partenza, perché non c'è ancora un riferimento precedente con cui calcolare la differenza: se hai già percorso km oggi prima di questa prima lettura, il campo km resta vuoto e vanno inseriti a mano (il contachilometri letto li include già). Se dopo l'ultima lettura hai registrato spostamenti in monopattino a mano, l'app li toglie da sola dal valore proposto, così non vengono contati due volte (vale dalla seconda lettura confermata in poi). Il monopattino non registra in che giorno hai guidato: se l'ultima lettura è di un giorno precedente, l'app ti chiede il giorno dei km (Oggi, Ieri, …) prima di salvare. Se leggi ogni sera, la data è sempre quella giusta senza domande. In «Registra ricarica» lo stesso pulsante compila il contachilometri; se leggi con il caricatore collegato, l'app ti propone di registrare la ricarica. La prima lettura richiede l'abbinamento: premi una volta il pulsante di accensione quando l'app lo chiede.</div>
         </div>
         <div class="guide-item">
           <div class="guide-t">Abbinamento e SHU 🔑</div>
@@ -678,6 +681,11 @@
   // e nelle prime ore del giorno restituirebbe ancora la data di ieri).
   function todayStr(){
     var d = new Date();
+    return d.getFullYear() + "-" + String(d.getMonth()+1).padStart(2,"0") + "-" + String(d.getDate()).padStart(2,"0");
+  }
+  // Data locale (AAAA-MM-GG) spostata di n giorni rispetto a una data locale
+  function addDaysStr(dateStr, n){
+    var p = dateStr.split("-"), d = new Date(+p[0], +p[1]-1, +p[2] + n);
     return d.getFullYear() + "-" + String(d.getMonth()+1).padStart(2,"0") + "-" + String(d.getDate()).padStart(2,"0");
   }
 
@@ -1536,6 +1544,7 @@
     document.getElementById("tripKm").value = "";
     pendingOdo = null;
     var tbn = document.querySelector("#tripBle .ble-note"); if(tbn) tbn.textContent = "";
+    hideDayPicker();
     selectMezzo("monopattino");
     clearFieldError("tripDate");
     clearFieldError("tripKm");
@@ -1583,6 +1592,11 @@
       setFieldError("tripKm", "Inserisci i chilometri percorsi (es. 6.5).");
       valid = false;
     }
+    // km letti dal monopattino dopo una lettura di un giorno precedente: il giorno va scelto
+    if(pendingOdo && pendingOdo.needDay && !editingId && mezzoSel === "monopattino"){
+      setFieldError("tripDate", "Scegli il giorno in cui hai fatto questi km (pulsanti sotto i chilometri).");
+      valid = false;
+    }
     if(!valid) return;
 
     var date = dateRaw || todayStr();
@@ -1599,7 +1613,7 @@
     saveJSON(TRIPS_KEY, trips);
     // Il riferimento del contachilometri ricorda quale spostamento è nato da questa lettura,
     // così alla lettura successiva non viene sottratto come se fosse un inserimento manuale.
-    if(pendingOdo && newTrip && mezzoSel === "monopattino") saveJSON(ODO_KEY, Object.assign({}, pendingOdo, { skipId: newTrip.id }));
+    if(pendingOdo && newTrip && mezzoSel === "monopattino") saveJSON(ODO_KEY, { km: pendingOdo.km, date: pendingOdo.date, ts: pendingOdo.ts, skipId: newTrip.id });
     resetAddForm();
     showView("dashboard");
     showToast(wasEditing ? "✓ Spostamento modificato" : "✓ Spostamento salvato");
@@ -2361,6 +2375,7 @@
 
   var tripBle = mountBle("tripBle", "🛴 Leggi km dal monopattino", function(r, setNote){
     selectMezzo("monopattino");
+    hideDayPicker();
     var ref = loadJSON(ODO_KEY, null);
     var now = Date.now();
     if(!ref || typeof ref.km !== "number"){
@@ -2390,10 +2405,61 @@
     }
     document.getElementById("tripKm").value = proposto;
     clearFieldError("tripKm");
-    pendingOdo = { km: r.km, date: todayStr(), ts: now };
+    var oggi = todayStr();
+    // Lettura precedente di un altro giorno: il monopattino non dice quando hai guidato,
+    // quindi si chiede il giorno invece di usare oggi in silenzio.
+    var needDay = ref.date < oggi;
+    pendingOdo = { km: r.km, date: oggi, ts: now, needDay: needDay };
     setNote("Contachilometri " + fmtKm(r.km) + ": +" + fmtKm(delta) + " dalla lettura del " + refDate
       + (manuali > 0 ? ", di cui " + fmtKm(manuali) + " già registrati a mano: propongo " + fmtKm(proposto) + "." : ".")
-      + " Salva lo spostamento per confermare.");
+      + (needDay ? " In che giorno li hai fatti?" : " Salva lo spostamento per confermare."));
+    if(needDay) showDayPicker(ref.date, oggi);
+    else { hideDayPicker(); document.getElementById("tripDate").value = oggi; }
+  });
+
+  // Scelta del giorno dei km letti: dal giorno dell'ultima lettura a oggi (massimo 7 giorni)
+  function dayLabel(ds, oggi){
+    if(ds === oggi) return "Oggi";
+    if(ds === addDaysStr(oggi, -1)) return "Ieri";
+    var p = ds.split("-");
+    return new Date(+p[0], +p[1]-1, +p[2]).toLocaleDateString("it-IT", { weekday:"short", day:"numeric", month:"short" });
+  }
+  function hideDayPicker(){
+    var w = document.querySelector("#tripBle .ble-days");
+    if(w){ w.innerHTML = ""; w.style.display = "none"; }
+  }
+  function showDayPicker(fromDate, oggi){
+    var box = document.getElementById("tripBle");
+    var w = box.querySelector(".ble-days");
+    if(!w){
+      w = document.createElement("div");
+      w.className = "ble-days";
+      var note = box.querySelector(".ble-note");
+      if(note && note.insertAdjacentElement) note.insertAdjacentElement("afterend", w); else box.appendChild(w);
+    }
+    var start = fromDate > addDaysStr(oggi, -6) ? fromDate : addDaysStr(oggi, -6);
+    var days = [];
+    for(var d = oggi; d >= start; d = addDaysStr(d, -1)) days.push(d);
+    w.innerHTML = days.map(function(ds){
+      return '<button type="button" class="route-chip" data-day="' + ds + '">' + escHtml(dayLabel(ds, oggi)) + '</button>';
+    }).join("") + '<div class="param-note" style="margin-top:2px;width:100%;">Se li hai fatti in più giorni, scegli quello con più km e correggi gli altri a mano. Puoi anche usare il campo Data in alto.</div>';
+    w.style.display = "flex";
+    Array.prototype.forEach.call(w.querySelectorAll("button[data-day]"), function(b){
+      b.addEventListener("click", function(){ pickDay(b.getAttribute("data-day")); });
+    });
+  }
+  function pickDay(ds){
+    document.getElementById("tripDate").value = ds;
+    if(pendingOdo) pendingOdo.needDay = false;
+    clearFieldError("tripDate");
+    var w = document.querySelector("#tripBle .ble-days");
+    if(w) Array.prototype.forEach.call(w.querySelectorAll("button[data-day]"), function(b){
+      b.classList.toggle("on", b.getAttribute("data-day") === ds);
+    });
+  }
+  // Una data scelta a mano nel campo Data vale come risposta
+  document.getElementById("tripDate").addEventListener("change", function(){
+    if(pendingOdo && pendingOdo.needDay) pickDay(document.getElementById("tripDate").value);
   });
 
   mountBle("chargeBle", "🛴 Leggi contachilometri dal monopattino", function(r, setNote){
@@ -2457,7 +2523,7 @@
   document.getElementById("bleDiagCopy").addEventListener("click", function(){ copyText(diagText || "(vuoto)", "✓ Risultato copiato"); });
   // ---------- Versione ----------
   // Da tenere uguale al numero di CACHE_NAME in sw.js (rotaia-cache-vNN) a ogni modifica.
-  var APP_VERSION = 19, APP_DATE = "21 ottobre 2026";
+  var APP_VERSION = 20, APP_DATE = "24 ottobre 2026";
   function renderVersion(){
     var el = document.getElementById("appVersion");
     var base = "Versione " + APP_VERSION + " · " + APP_DATE;
