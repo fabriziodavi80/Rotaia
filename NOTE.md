@@ -109,7 +109,7 @@ Nel BMS i valori `0x15`..`0x1E` formano una tabella tensione/carica, non celle.
 
 ## 3. Prossimi passi
 
-0. **Orologio nel monopattino?** Cercare nella lettura diagnostica valori u32 vicini all'ora attuale in secondi (circa 1,79 miliardi nel 2026). Se uno avanza col tempo tra due letture, la data dei km si può ricavare senza chiedere.
+0. **Orologio nel monopattino: escluso (24/10).** Nella diagnostica del 24/10 (VCU e BMS, parole `0x10`..`0xDF`) nessun valore u16/u32 corrisponde all'ora attuale come secondi, minuti, ore o giorni dal 1970, 2000 o 2020 (tolleranza 3 giorni), né date in byte. VCU `0x10`..`0x16` e `0x20`..`0x27` sono testo (seriale `1CGIF2527C0369` e un secondo codice). Non rileggere per questo: la data dei km resta proposta dall'app (`giornoProbabile`). Non lette in blocco: BMS `0x38`, `0x48`..`0x5F`, `0xA0`..`0xAF`, `0xC8`.
 1. **Confermare i cicli:** alla prossima lettura dopo la ricarica del 19/10, `cycA` dovrebbe passare da 6 a 7 e la scheda mostrerà il numero senza "(da confermare)". Se dopo 3 ricariche non sale mai, la riga sparisce da sola: allora cercare con la lettura diagnostica nella zona `0xC0`..`0xDF` del BMS.
 2. **Capacità reale:** controllare nei backup futuri se `cap5A` o `cap8A` scendono sotto `fullmAh`. Finché coincidono la scheda non mostra nulla di più.
 3. **Autonomia:** il consumo misurato (≈ 34 km) è già usato per la barra; valutare con l'utente se allineare il parametro (36 km), che pesa sul costo al km anche del passato.
