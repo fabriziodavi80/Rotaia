@@ -17,7 +17,7 @@ App personale (PWA, pagina unica) che confronta spostamenti in monopattino (Nine
 |---|---|
 | `index.html` | Tutta l'app (HTML, CSS, JS in un unico `<script>` finale, circa 2340 righe) |
 | `g3ble.js` | Comunicazione Bluetooth con il Max G3 (cifratura, abbinamento, lettura registri) |
-| `sw.js` | Service worker. `CACHE_NAME` attuale: `rotaia-cache-v20` |
+| `sw.js` | Service worker. `CACHE_NAME` attuale: `rotaia-cache-v21` |
 | `manifest.json`, `icon-192.png`, `icon-512.png`, `apple-touch-icon.png` | PWA |
 
 ### Funzioni principali
@@ -80,7 +80,7 @@ Nel BMS i valori `0x15`..`0x1E` formano una tabella tensione/carica, non celle.
 - **Prezzi bloccati per spostamento; consumo e autonomia retroattivi.** Il pulsante "Applica i prezzi attuali a tutto lo storico" è l'unico modo di cambiare i prezzi del passato.
 - **Il consumo misurato dalla batteria batte la media dei cicli** per l'autonomia (vedi sopra).
 - **Importazione prudente:** gli id validi si conservano, quelli non validi si rigenerano; nomi dei tragitti ripuliti (`cleanLabel`) e protetti nel rendering (`escHtml`); parametri validati uno a uno; la chiave Bluetooth non entra nel backup.
-- **Giorno dei km letti via Bluetooth:** se l'ultima lettura (`ref.date` in `rotaia_odo_v1`) è di un giorno precedente, `pendingOdo.needDay` blocca il salvataggio finché non si sceglie il giorno (pulsanti Oggi/Ieri/… fino a 7 giorni, o campo Data). Il monopattino non ha un registro con i km per giorno.
+- **Giorno dei km letti via Bluetooth:** se l'ultima lettura (`ref.date` in `rotaia_odo_v1`) è di un giorno precedente, l'app preseleziona il giorno più probabile (`giornoProbabile`: prima delle 12 «Ieri», poi «Oggi») e mostra i pulsanti Oggi/Ieri/… (fino a 7 giorni) per cambiarlo; nessun blocco al salvataggio (l'utente non voleva un blocco). Il monopattino non ha un registro con i km per giorno.
 - **Rilevamento "km già inseriti a mano":** l'istante di creazione è nell'id (`Date.now()-xxxxx`) e serve per sottrarre i km manuali dalla proposta Bluetooth.
 - **"Stato batteria":** per ora solo ultima lettura; nessuna storia dei valori e nessun grafico.
 
@@ -109,6 +109,7 @@ Nel BMS i valori `0x15`..`0x1E` formano una tabella tensione/carica, non celle.
 
 ## 3. Prossimi passi
 
+0. **Orologio nel monopattino?** Cercare nella lettura diagnostica valori u32 vicini all'ora attuale in secondi (circa 1,79 miliardi nel 2026). Se uno avanza col tempo tra due letture, la data dei km si può ricavare senza chiedere.
 1. **Confermare i cicli:** alla prossima lettura dopo la ricarica del 19/10, `cycA` dovrebbe passare da 6 a 7 e la scheda mostrerà il numero senza "(da confermare)". Se dopo 3 ricariche non sale mai, la riga sparisce da sola: allora cercare con la lettura diagnostica nella zona `0xC0`..`0xDF` del BMS.
 2. **Capacità reale:** controllare nei backup futuri se `cap5A` o `cap8A` scendono sotto `fullmAh`. Finché coincidono la scheda non mostra nulla di più.
 3. **Autonomia:** il consumo misurato (≈ 34 km) è già usato per la barra; valutare con l'utente se allineare il parametro (36 km), che pesa sul costo al km anche del passato.

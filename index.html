@@ -588,7 +588,7 @@
         </div>
         <div class="guide-item">
           <div class="guide-t">Lettura dal monopattino 🛴</div>
-          <div class="guide-d">Con il monopattino acceso e SHU chiusa, «Leggi km dal monopattino» legge il contachilometri e compila i km fatti dall'ultima lettura. La prima volta salva solo il punto di partenza, perché non c'è ancora un riferimento precedente con cui calcolare la differenza: se hai già percorso km oggi prima di questa prima lettura, il campo km resta vuoto e vanno inseriti a mano (il contachilometri letto li include già). Se dopo l'ultima lettura hai registrato spostamenti in monopattino a mano, l'app li toglie da sola dal valore proposto, così non vengono contati due volte (vale dalla seconda lettura confermata in poi). Il monopattino non registra in che giorno hai guidato: se l'ultima lettura è di un giorno precedente, l'app ti chiede il giorno dei km (Oggi, Ieri, …) prima di salvare. Se leggi ogni sera, la data è sempre quella giusta senza domande. In «Registra ricarica» lo stesso pulsante compila il contachilometri; se leggi con il caricatore collegato, l'app ti propone di registrare la ricarica. La prima lettura richiede l'abbinamento: premi una volta il pulsante di accensione quando l'app lo chiede.</div>
+          <div class="guide-d">Con il monopattino acceso e SHU chiusa, «Leggi km dal monopattino» legge il contachilometri e compila i km fatti dall'ultima lettura. La prima volta salva solo il punto di partenza, perché non c'è ancora un riferimento precedente con cui calcolare la differenza: se hai già percorso km oggi prima di questa prima lettura, il campo km resta vuoto e vanno inseriti a mano (il contachilometri letto li include già). Se dopo l'ultima lettura hai registrato spostamenti in monopattino a mano, l'app li toglie da sola dal valore proposto, così non vengono contati due volte (vale dalla seconda lettura confermata in poi). Il monopattino non registra in che giorno hai guidato: se l'ultima lettura è di un giorno precedente, l'app propone il giorno più probabile (la mattina «Ieri», dal pomeriggio «Oggi») e mostra i pulsanti Oggi, Ieri, … per cambiarlo prima di salvare. Se leggi ogni sera, la data è sempre quella giusta. In «Registra ricarica» lo stesso pulsante compila il contachilometri; se leggi con il caricatore collegato, l'app ti propone di registrare la ricarica. La prima lettura richiede l'abbinamento: premi una volta il pulsante di accensione quando l'app lo chiede.</div>
         </div>
         <div class="guide-item">
           <div class="guide-t">Abbinamento e SHU 🔑</div>
@@ -1592,11 +1592,6 @@
       setFieldError("tripKm", "Inserisci i chilometri percorsi (es. 6.5).");
       valid = false;
     }
-    // km letti dal monopattino dopo una lettura di un giorno precedente: il giorno va scelto
-    if(pendingOdo && pendingOdo.needDay && !editingId && mezzoSel === "monopattino"){
-      setFieldError("tripDate", "Scegli il giorno in cui hai fatto questi km (pulsanti sotto i chilometri).");
-      valid = false;
-    }
     if(!valid) return;
 
     var date = dateRaw || todayStr();
@@ -2410,13 +2405,20 @@
     // quindi si chiede il giorno invece di usare oggi in silenzio.
     var needDay = ref.date < oggi;
     pendingOdo = { km: r.km, date: oggi, ts: now, needDay: needDay };
+    var giorno = needDay ? giornoProbabile(ref.date, oggi, new Date().getHours()) : oggi;
     setNote("Contachilometri " + fmtKm(r.km) + ": +" + fmtKm(delta) + " dalla lettura del " + refDate
       + (manuali > 0 ? ", di cui " + fmtKm(manuali) + " già registrati a mano: propongo " + fmtKm(proposto) + "." : ".")
-      + (needDay ? " In che giorno li hai fatti?" : " Salva lo spostamento per confermare."));
-    if(needDay) showDayPicker(ref.date, oggi);
+      + (needDay ? " Li metto " + (giorno === oggi ? "oggi" : "ieri") + ": se sono di un altro giorno, toccalo qui sotto." : " Salva lo spostamento per confermare."));
+    if(needDay){ showDayPicker(ref.date, oggi); pickDay(giorno); }
     else { hideDayPicker(); document.getElementById("tripDate").value = oggi; }
   });
 
+  // Giorno proposto per i km letti quando l'ultima lettura è di un giorno precedente:
+  // la mattina (prima delle 12) è più probabile che siano di ieri, dal pomeriggio di oggi.
+  function giornoProbabile(refDate, oggi, ora){
+    var ieri = addDaysStr(oggi, -1);
+    return (ora < 12 && refDate <= ieri) ? ieri : oggi;
+  }
   // Scelta del giorno dei km letti: dal giorno dell'ultima lettura a oggi (massimo 7 giorni)
   function dayLabel(ds, oggi){
     if(ds === oggi) return "Oggi";
@@ -2523,7 +2525,7 @@
   document.getElementById("bleDiagCopy").addEventListener("click", function(){ copyText(diagText || "(vuoto)", "✓ Risultato copiato"); });
   // ---------- Versione ----------
   // Da tenere uguale al numero di CACHE_NAME in sw.js (rotaia-cache-vNN) a ogni modifica.
-  var APP_VERSION = 20, APP_DATE = "24 ottobre 2026";
+  var APP_VERSION = 21, APP_DATE = "24 ottobre 2026";
   function renderVersion(){
     var el = document.getElementById("appVersion");
     var base = "Versione " + APP_VERSION + " · " + APP_DATE;
