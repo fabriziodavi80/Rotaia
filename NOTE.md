@@ -17,7 +17,7 @@ App personale (PWA, pagina unica) che confronta spostamenti in monopattino (Nine
 |---|---|
 | `index.html` | Tutta l'app (HTML, CSS, JS in un unico `<script>` finale, circa 2340 righe) |
 | `g3ble.js` | Comunicazione Bluetooth con il Max G3 (cifratura, abbinamento, lettura registri) |
-| `sw.js` | Service worker. `CACHE_NAME` attuale: `rotaia-cache-v22` |
+| `sw.js` | Service worker. `CACHE_NAME` attuale: `rotaia-cache-v23` |
 | `manifest.json`, `icon-192.png`, `icon-512.png`, `apple-touch-icon.png` | PWA |
 
 ### Funzioni principali
@@ -78,6 +78,7 @@ Nel BMS i valori `0x15`..`0x1E` formano una tabella tensione/carica, non celle.
 - **Un solo file HTML, nessuna dipendenza.** Niente framework né build. JavaScript semplice (`var`, funzioni), niente moduli.
 - **Netto vs lordo** e segno negativo per l'auto: il netto è il numero principale. Dal 27/10 un viaggio in auto è negativo solo se evitabile (`autoEvitabile`): campo facoltativo `fatt` (true/false) scelto dall'utente, altrimenti automatico se `km <= autonomiaReale`. Non evitabile = risparmio e CO2 a 0.
 - **Prezzi bloccati per spostamento; consumo e autonomia retroattivi.** Il pulsante "Applica i prezzi attuali a tutto lo storico" è l'unico modo di cambiare i prezzi del passato.
+- **Km annui per la manutenzione:** con almeno 365 giorni dal primo spostamento in monopattino si usano i km reali in monopattino degli ultimi 365 giorni (`kmAnnuiReali`, minimo 100 km), altrimenti `params.kmAnnui`. Retroattivo come consumo e autonomia. Motivo: l'uso è stagionale (meno da novembre, di più da marzo), quindi il ritmo di un mese non vale come media annua. Cache invalidata da `tripsRev` in `saveJSON`.
 - **Il consumo misurato dalla batteria batte la media dei cicli** per l'autonomia (vedi sopra).
 - **Importazione prudente:** gli id validi si conservano, quelli non validi si rigenerano; nomi dei tragitti ripuliti (`cleanLabel`) e protetti nel rendering (`escHtml`); parametri validati uno a uno; la chiave Bluetooth non entra nel backup.
 - **Giorno dei km letti via Bluetooth:** se l'ultima lettura (`ref.date` in `rotaia_odo_v1`) è di un giorno precedente, l'app preseleziona il giorno più probabile (`giornoProbabile`: prima delle 12 «Ieri», poi «Oggi») e mostra i pulsanti Oggi/Ieri/… (fino a 7 giorni) per cambiarlo; nessun blocco al salvataggio (l'utente non voleva un blocco). Il monopattino non ha un registro con i km per giorno.

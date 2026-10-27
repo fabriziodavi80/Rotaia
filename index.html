@@ -533,6 +533,7 @@
 
           <label for="pKmAnnui">Km annui stimati (per ripartire la manutenzione)</label>
           <input type="number" id="pKmAnnui" min="1" step="1" inputmode="decimal">
+          <div class="param-note" id="kmAnnuiNote" style="margin-top:6px;"></div>
 
           <label for="pObiettivo">Obiettivo di risparmio mensile (€, 0 = disattivato)</label>
           <input type="number" id="pObiettivo" min="0" step="1" inputmode="decimal">
@@ -625,7 +626,7 @@
         </div>
         <div class="guide-item">
           <div class="guide-t">Prezzi e storico</div>
-          <div class="guide-d">Ogni spostamento salva i prezzi di benzina ed elettricità del momento: se cambiano, il risparmio già accumulato resta uguale e i nuovi prezzi valgono solo per i km futuri. Consumo e autonomia invece, se li correggi, si applicano anche al passato. Se vuoi ricalcolare tutto con i prezzi attuali, usa «Applica i prezzi attuali a tutto lo storico» in Parametri.</div>
+          <div class="guide-d">Ogni spostamento salva i prezzi di benzina ed elettricità del momento: se cambiano, il risparmio già accumulato resta uguale e i nuovi prezzi valgono solo per i km futuri. Consumo, autonomia e manutenzione al km invece si applicano anche al passato. La manutenzione annua è divisa sui km annui: con almeno un anno di dati l'app usa da sola i km reali in monopattino degli ultimi 12 mesi (inverno compreso), prima il valore che metti in Parametri. Se vuoi ricalcolare tutto con i prezzi attuali, usa «Applica i prezzi attuali a tutto lo storico» in Parametri.</div>
         </div>
         <div class="guide-item">
           <div class="guide-t">Backup dei dati</div>
@@ -709,6 +710,7 @@
   // un fallimento silenzioso farebbe perdere dati senza che nessuno se ne accorga.
   var lastSaveWarn = 0;
   function saveJSON(key, val){
+    if(key === TRIPS_KEY) tripsRev++;
     try{ localStorage.setItem(key, JSON.stringify(val)); return true; }
     catch(e){
       var now = Date.now();
@@ -774,11 +776,32 @@
     if(errEl){ errEl.textContent = ""; errEl.classList.remove("show"); }
   }
 
+  // Km annui per ripartire la manutenzione. Con almeno un anno di dati si usano i km reali in
+  // monopattino degli ultimi 365 giorni (inverno compreso); prima, il valore dei Parametri.
+  var tripsRev = 0, kmAnnuiCache = null;
+  var KM_ANNUI_MIN = 100; // sotto questa soglia il dato reale non è credibile per ripartire i costi
+  function kmAnnuiReali(){
+    var oggi = todayStr(), key = tripsRev + "|" + trips.length + "|" + oggi;
+    if(kmAnnuiCache && kmAnnuiCache.key === key) return kmAnnuiCache.val;
+    var primo = null;
+    trips.forEach(function(t){ if(t.mezzo === "monopattino" && (!primo || t.date < primo)) primo = t.date; });
+    var val = { km: null, da: primo ? addDaysStr(primo, 365) : null };
+    var inizio = addDaysStr(oggi, -365);
+    if(primo && primo <= inizio){
+      var km = trips.filter(function(t){ return t.mezzo === "monopattino" && t.date > inizio && t.date <= oggi; })
+        .reduce(function(s,t){ return s + t.km; }, 0);
+      if(km >= KM_ANNUI_MIN) val.km = Math.round(km);
+    }
+    kmAnnuiCache = { key: key, val: val };
+    return val;
+  }
+  function kmAnnuiUsati(p){ var r = kmAnnuiReali(); return r.km !== null ? r.km : p.kmAnnui; }
+
   // Costi al km (identici alle celle C15:C19 del foglio Parametri)
   function derivati(){
     var kwhKm = params.capacitaBatteria / params.autonomiaReale;
     var energia = kwhKm * params.prezzoElettrico;
-    var manut = params.manutenzioneAnnua / params.kmAnnui;
+    var manut = params.manutenzioneAnnua / kmAnnuiUsati(params);
     return {
       whKm: kwhKm * 1000,
       energia: energia,
@@ -799,7 +822,7 @@
   function tripKmCosts(t){
     var pb = typeof t.pb === "number" ? t.pb : params.prezzoBenzina;
     var pe = typeof t.pe === "number" ? t.pe : params.prezzoElettrico;
-    var manut = params.manutenzioneAnnua / params.kmAnnui;
+    var manut = params.manutenzioneAnnua / kmAnnuiUsati(params);
     return {
       scooter: (params.capacitaBatteria / params.autonomiaReale) * pe + manut,
       auto: (params.consumoAuto/100) * pb
@@ -2154,7 +2177,11 @@
   function renderDerived(p){
     var kwhKm = p.capacitaBatteria / p.autonomiaReale;
     var energia = kwhKm * p.prezzoElettrico;
-    var manut = p.manutenzioneAnnua / p.kmAnnui;
+    var manut = p.manutenzioneAnnua / kmAnnuiUsati(p);
+    var r = kmAnnuiReali(), note = document.getElementById("kmAnnuiNote");
+    if(r.km !== null) note.textContent = "In uso: " + r.km.toLocaleString("it-IT") + " km, quelli reali in monopattino degli ultimi 12 mesi. Il valore qui sopra non viene usato.";
+    else if(r.da) note.textContent = "Dal " + new Date(r.da + "T00:00:00").toLocaleDateString("it-IT", { day:"numeric", month:"long", year:"numeric" }) + ", con un anno di dati, l'app userà da sola i km reali degli ultimi 12 mesi. Fino ad allora vale questo numero: mettici una stima dell'anno intero, inverno compreso.";
+    else note.textContent = "";
     document.getElementById("dConsumo").textContent = fmt(kwhKm*1000, 2) + " Wh/km";
     document.getElementById("dEnergia").textContent = fmt(energia, 4) + " €/km";
     document.getElementById("dManut").textContent = fmt(manut, 4) + " €/km";
@@ -2575,7 +2602,7 @@
   document.getElementById("bleDiagCopy").addEventListener("click", function(){ copyText(diagText || "(vuoto)", "✓ Risultato copiato"); });
   // ---------- Versione ----------
   // Da tenere uguale al numero di CACHE_NAME in sw.js (rotaia-cache-vNN) a ogni modifica.
-  var APP_VERSION = 22, APP_DATE = "27 ottobre 2026";
+  var APP_VERSION = 23, APP_DATE = "27 ottobre 2026";
   function renderVersion(){
     var el = document.getElementById("appVersion");
     var base = "Versione " + APP_VERSION + " · " + APP_DATE;
