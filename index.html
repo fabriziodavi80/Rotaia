@@ -619,7 +619,7 @@
       <div class="details-body">
         <div class="guide-item">
           <div class="guide-t">Risparmio netto vs lordo</div>
-          <div class="guide-d">Il <b>netto</b> è il risparmio reale: per ogni spostamento in monopattino viene aggiunto, per ogni spostamento in auto che si poteva fare in monopattino viene sottratto (risparmio mancato). In automatico conta come evitabile un viaggio in auto entro la «Distanza massima in monopattino» dei Parametri (18 km, mai oltre l'autonomia); uno più lungo vale 0 e nello Storico è segnato «non evitabile». Quando registri un viaggio in auto puoi scegliere tu con «Si poteva fare in monopattino?» (per esempio «No» con pioggia o carico). Il <b>lordo</b> conta solo i km fatti in monopattino, senza sottrarre l'auto: è il numero da guardare se vuoi capire quanto ti sta facendo risparmiare il monopattino di per sé.</div>
+          <div class="guide-d">Il <b>netto</b> è il risparmio reale: per ogni spostamento in monopattino viene aggiunto, per ogni spostamento in auto che si poteva fare in monopattino viene sottratto (risparmio mancato); vengono tolte anche le spese di manutenzione registrate. In automatico conta come evitabile un viaggio in auto entro la «Distanza massima in monopattino» dei Parametri (18 km, mai oltre l'autonomia); uno più lungo vale 0 e nello Storico è segnato «non evitabile». Quando registri un viaggio in auto puoi scegliere tu con «Si poteva fare in monopattino?» (per esempio «No» con pioggia o carico). Il <b>lordo</b> conta solo i km fatti in monopattino, senza sottrarre l'auto: è il numero da guardare se vuoi capire quanto ti sta facendo risparmiare il monopattino di per sé.</div>
         </div>
         <div class="guide-item">
           <div class="guide-t">Spese di manutenzione 🔧</div>
@@ -627,7 +627,11 @@
         </div>
         <div class="guide-item">
           <div class="guide-t">Proiezione, pareggio e recuperi</div>
-          <div class="guide-d">La proiezione annua e la data di pareggio usano il risparmio medio per giorno di calendario, dal primo spostamento a oggi, contando anche i giorni senza uscite: è il ritmo attuale, quindi d'inverno scende e in primavera risale. Se inserisci in un colpo solo km fatti prima di usare l'app, spunta «Recupero di km passati»: quei km entrano nel totale e avvicinano il pareggio, ma non falsano medie, proiezione e serie. Nello Storico sono segnati «recupero». Scegliendo un mese (o un mezzo) nei filtri dello Storico, sopra l'elenco compaiono i totali: km, risparmio, spese del mese e netto.</div>
+          <div class="guide-d">La proiezione annua e la data di pareggio usano il risparmio medio per giorno di calendario, dal primo spostamento a oggi, contando anche i giorni senza uscite: è il ritmo attuale, quindi d'inverno scende e in primavera risale. Se inserisci in un colpo solo km fatti prima di usare l'app, spunta «Recupero di km passati»: quei km entrano nel totale e avvicinano il pareggio, ma non falsano medie, proiezione e serie. Nello Storico sono segnati «recupero».</div>
+        </div>
+        <div class="guide-item">
+          <div class="guide-t">Storico e totali del mese</div>
+          <div class="guide-d">Tocca uno spostamento per modificarlo, la × per eliminarlo. Scegliendo un mese (o un mezzo) nei filtri, sopra l'elenco compaiono i totali: km in monopattino e in auto (con quelli evitabili), uso del monopattino, risparmio, spese di manutenzione del mese e netto.</div>
         </div>
         <div class="guide-item">
           <div class="guide-t">Autonomia e ricariche</div>
@@ -643,7 +647,7 @@
         </div>
         <div class="guide-item">
           <div class="guide-t">Consumo misurato ⚡</div>
-          <div class="guide-d">A ogni lettura l'app salva anche l'energia rimasta nella batteria. Tra due letture con dei km in mezzo calcola quanti Wh hai consumato per km. Le coppie di letture con una ricarica in mezzo vengono scartate. Dopo almeno 5 km misurati puoi usare questo valore per aggiornare l'autonomia nei Parametri: il calcolo del risparmio resta lo stesso del foglio Excel, cambia solo il dato di partenza. Come nel foglio, non è inclusa la perdita del caricatore (circa 10-15%): sui tuoi numeri vale circa 1 € all'anno, quindi è trascurabile.</div>
+          <div class="guide-d">A ogni lettura l'app salva anche l'energia rimasta nella batteria. Tra due letture con dei km in mezzo calcola quanti Wh hai consumato per km. Le coppie di letture con una ricarica in mezzo, o con il caricatore collegato, vengono scartate. Dopo almeno 5 km misurati puoi usare questo valore per aggiornare l'autonomia nei Parametri: il calcolo del risparmio resta lo stesso del foglio Excel, cambia solo il dato di partenza. Come nel foglio, non è inclusa la perdita del caricatore (circa 10-15%): sui tuoi numeri vale circa 1 € all'anno, quindi è trascurabile.</div>
         </div>
         <div class="guide-item">
           <div class="guide-t">Due modi di stimare l'autonomia</div>
@@ -651,23 +655,23 @@
         </div>
         <div class="guide-item">
           <div class="guide-t">Serie monopattino (streak) 🔥</div>
-          <div class="guide-d">Conta i giorni consecutivi, fino a oggi, in cui hai registrato almeno uno spostamento in monopattino. Se oggi non hai ancora registrato nulla, la serie viene calcolata fino a ieri e non si interrompe subito.</div>
+          <div class="guide-d">Conta i giorni consecutivi, fino a oggi, in cui hai registrato almeno uno spostamento in monopattino. Se oggi non hai ancora registrato nulla, la serie viene calcolata fino a ieri e non si interrompe subito. I recuperi di km passati non contano.</div>
         </div>
         <div class="guide-item">
           <div class="guide-t">Obiettivo di risparmio mensile</div>
-          <div class="guide-d">Se impostato sopra a 0€, in dashboard compare una barra di avanzamento con il risparmio netto accumulato nel mese in corso rispetto all'obiettivo.</div>
+          <div class="guide-d">Se impostato sopra a 0€, in dashboard compare una barra di avanzamento con il risparmio netto accumulato nel mese in corso (spese di manutenzione del mese comprese) rispetto all'obiettivo.</div>
         </div>
         <div class="guide-item">
           <div class="guide-t">Stato batteria</div>
-          <div class="guide-d">Dopo ogni lettura dal monopattino compare la scheda con salute dichiarata dal BMS, capacità piena e residua, tensione, temperatura e soprattutto lo scarto in mV tra la cella più carica e la più scarica (sotto 20 mV è ottimo). Le ore di guida e la velocità media vengono dal contatore interno. Sotto c'è l'andamento dello scarto tra le celle nel tempo (una lettura al giorno basta): se supera 50 mV o la batteria arriva a 45 °C compare un avviso. I cicli di carica restano "da confermare" finché una lettura dopo una ricarica registrata non mostra il contatore salito di uno.</div>
+          <div class="guide-d">Dopo ogni lettura dal monopattino compare la scheda con salute dichiarata dal BMS, capacità piena e residua, tensione, temperatura e soprattutto lo scarto in mV tra la cella più carica e la più scarica (sotto 20 mV è ottimo). Le ore di guida e la velocità media vengono dal contatore interno. Sotto c'è l'andamento dello scarto tra le celle nel tempo (una lettura al giorno basta): se supera 50 mV o la batteria arriva a 45 °C compare un avviso. Se un registro della batteria mostra una capacità reale più bassa di quella di targa, accanto alla capacità piena compaiono la capacità reale e l'usura in %. I cicli di carica restano "da confermare" finché una lettura dopo una ricarica registrata non mostra il contatore salito di uno.</div>
         </div>
         <div class="guide-item">
           <div class="guide-t">Prezzi e storico</div>
-          <div class="guide-d">Ogni spostamento salva i prezzi di benzina ed elettricità del momento: se cambiano, il risparmio già accumulato resta uguale e i nuovi prezzi valgono solo per i km futuri. Consumo, autonomia e manutenzione al km invece si applicano anche al passato. L'assicurazione (e gli altri costi fissi annui dei Parametri) è divisa sui km annui: con almeno un anno di dati l'app usa da sola i km reali in monopattino degli ultimi 12 mesi (inverno compreso), prima il valore che metti in Parametri. Se vuoi ricalcolare tutto con i prezzi attuali, usa «Applica i prezzi attuali a tutto lo storico» in Parametri.</div>
+          <div class="guide-d">Ogni spostamento salva i prezzi di benzina ed elettricità del momento: se cambiano, il risparmio già accumulato resta uguale e i nuovi prezzi valgono solo per i km futuri. Consumo, autonomia e costi fissi al km invece si applicano anche al passato. L'assicurazione (e gli altri costi fissi annui dei Parametri) è divisa sui km annui: con almeno un anno di dati l'app usa da sola i km reali in monopattino degli ultimi 12 mesi (inverno compreso), prima il valore che metti in Parametri. Se vuoi ricalcolare tutto con i prezzi attuali, usa «Applica i prezzi attuali a tutto lo storico» in Parametri.</div>
         </div>
         <div class="guide-item">
           <div class="guide-t">Backup dei dati</div>
-          <div class="guide-d">Tutto è salvato solo su questo dispositivo (nessun account, nessun server). Esporta periodicamente il «Backup completo (JSON)» da Storico, o condividilo direttamente, per non perdere nulla se cambi telefono o cancelli l'app: contiene spostamenti, ricariche, tragitti, parametri e storico delle letture. Per ripristinarlo usa «Importa da file». La chiave di abbinamento del monopattino non è nel backup: conservane una copia da Parametri. Il CSV serve solo se vuoi i soli spostamenti in Excel. In Dashboard compare un promemoria se non hai mai fatto un backup (dopo 7 giorni di dati) o se l'ultimo ha almeno 30 giorni: «Più tardi» lo nasconde per una settimana. Sotto i pulsanti di backup vedi anche se il browser protegge l'archiviazione dei dati; se non è garantita, i backup regolari sono la tua sicurezza. Se un salvataggio fallisce (spazio pieno o bloccato), compare un avviso: esporta subito un backup.</div>
+          <div class="guide-d">Tutto è salvato solo su questo dispositivo (nessun account, nessun server). Esporta periodicamente il «Backup completo (JSON)» da Storico, o condividilo direttamente, per non perdere nulla se cambi telefono o cancelli l'app: contiene spostamenti, ricariche, tragitti, spese di manutenzione, parametri e storico delle letture. Per ripristinarlo usa «Importa da file». La chiave di abbinamento del monopattino non è nel backup: conservane una copia da Parametri. Il CSV serve solo se vuoi i soli spostamenti in Excel. In Dashboard compare un promemoria se non hai mai fatto un backup (dopo 7 giorni di dati) o se l'ultimo ha almeno 30 giorni: «Più tardi» lo nasconde per una settimana. Sotto i pulsanti di backup vedi anche se il browser protegge l'archiviazione dei dati; se non è garantita, i backup regolari sono la tua sicurezza. Se un salvataggio fallisce (spazio pieno o bloccato), compare un avviso: esporta subito un backup. In fondo a questa pagina trovi la versione dell'app in uso.</div>
         </div>
       </div>
     </details>
@@ -2770,7 +2774,7 @@
   document.getElementById("bleDiagCopy").addEventListener("click", function(){ copyText(diagText || "(vuoto)", "✓ Risultato copiato"); });
   // ---------- Versione ----------
   // Da tenere uguale al numero di CACHE_NAME in sw.js (rotaia-cache-vNN) a ogni modifica.
-  var APP_VERSION = 26, APP_DATE = "27 ottobre 2026";
+  var APP_VERSION = 27, APP_DATE = "27 ottobre 2026";
   function renderVersion(){
     var el = document.getElementById("appVersion");
     var base = "Versione " + APP_VERSION + " · " + APP_DATE;
