@@ -243,6 +243,8 @@
   }
 
   .history-filters{ display:flex; gap:8px; margin-bottom:12px; }
+  .hist-totals{ padding:4px 12px 10px; border:1px solid var(--ink-10); border-radius:10px; margin-bottom:12px; }
+  .hist-totals .be-detail.tot{ color:var(--ink); font-weight:600; border-top:1px solid var(--ink-10); padding-top:8px; }
   .history-filters select{
     flex:1; padding:9px 10px; border-radius:8px; border:1px solid var(--ink-10);
     background:var(--bg); color:var(--ink); font-size:13px; font-family:inherit;
@@ -492,6 +494,7 @@
           <option value="auto">Auto</option>
         </select>
       </div>
+      <div class="hist-totals" id="historyTotals" style="display:none;"></div>
       <div id="historyList"></div>
     </div>
 
@@ -624,7 +627,7 @@
         </div>
         <div class="guide-item">
           <div class="guide-t">Proiezione, pareggio e recuperi</div>
-          <div class="guide-d">La proiezione annua e la data di pareggio usano il risparmio medio per giorno di calendario, dal primo spostamento a oggi, contando anche i giorni senza uscite: è il ritmo attuale, quindi d'inverno scende e in primavera risale. Se inserisci in un colpo solo km fatti prima di usare l'app, spunta «Recupero di km passati»: quei km entrano nel totale e avvicinano il pareggio, ma non falsano medie, proiezione e serie. Nello Storico sono segnati «recupero».</div>
+          <div class="guide-d">La proiezione annua e la data di pareggio usano il risparmio medio per giorno di calendario, dal primo spostamento a oggi, contando anche i giorni senza uscite: è il ritmo attuale, quindi d'inverno scende e in primavera risale. Se inserisci in un colpo solo km fatti prima di usare l'app, spunta «Recupero di km passati»: quei km entrano nel totale e avvicinano il pareggio, ma non falsano medie, proiezione e serie. Nello Storico sono segnati «recupero». Scegliendo un mese (o un mezzo) nei filtri dello Storico, sopra l'elenco compaiono i totali: km, risparmio, spese del mese e netto.</div>
         </div>
         <div class="guide-item">
           <div class="guide-t">Autonomia e ricariche</div>
@@ -1871,7 +1874,7 @@
         if(!confirm("Eliminare questa spesa?")) return;
         spese = spese.filter(function(x){ return x.id !== btn.getAttribute("data-id"); });
         saveJSON(SPESE_KEY, spese);
-        renderSpese(); renderDashboard();
+        renderSpese(); renderHistoryList(); renderDashboard();
         showToast("Spesa eliminata");
       });
     });
@@ -1887,7 +1890,7 @@
     saveJSON(SPESE_KEY, spese);
     document.getElementById("spesaDesc").value = ""; document.getElementById("spesaAmount").value = "";
     document.getElementById("spesaDate").value = todayStr();
-    renderSpese(); renderDashboard();
+    renderSpese(); renderHistoryList(); renderDashboard();
     showToast("✓ Spesa registrata: tolta dal risparmio netto");
   });
 
@@ -1898,13 +1901,44 @@
     renderBackupStatus();
   }
 
+  // Totali del filtro scelto (mese e/o mezzo): km, risparmio, spese del mese, netto
+  function renderHistoryTotals(shown){
+    var box = document.getElementById("historyTotals");
+    var hasMonth = historyFilters.month !== "all", hasMezzo = historyFilters.mezzo !== "all";
+    if((!hasMonth && !hasMezzo) || !shown.length && !hasMonth){ box.style.display = "none"; return; }
+    var sc = shown.filter(function(t){ return t.mezzo === "monopattino"; });
+    var au = shown.filter(function(t){ return t.mezzo === "auto"; });
+    var kmS = sc.reduce(function(a,t){ return a + t.km; }, 0), kmA = au.reduce(function(a,t){ return a + t.km; }, 0);
+    var kmAE = au.filter(autoEvitabile).reduce(function(a,t){ return a + t.km; }, 0);
+    var nRec = sc.filter(isRec).length;
+    var sav = shown.reduce(function(a,t){ return a + tripSaving(t); }, 0);
+    var sp = (historyFilters.mezzo === "auto") ? 0 : speseTot(function(x){ return !hasMonth || x.date.slice(0,7) === historyFilters.month; });
+    var row = function(l, v, cls){ return '<div class="be-detail' + (cls ? " " + cls : "") + '"><span>' + l + '</span><span class="mono">' + v + '</span></div>'; };
+    var sign = function(n){ return (n > 0.004 ? "+" : n < -0.004 ? "−" : "") + euro(Math.abs(n)); };
+    var h = "";
+    if(historyFilters.mezzo !== "auto")
+      h += row("Monopattino", fmtKm(kmS) + " · " + sc.length + (sc.length === 1 ? " spostamento" : " spostamenti") + (nRec ? " (" + nRec + " recupero)" : ""));
+    if(historyFilters.mezzo !== "monopattino")
+      h += row("Auto", fmtKm(kmA) + (kmA > 0 ? " · " + fmtKm(kmAE) + " evitabili" : ""));
+    if(!hasMezzo && kmS + kmA > 0) h += row("Uso monopattino (su km)", Math.round(kmS / (kmS + kmA) * 100) + "%");
+    h += row("Risparmio dagli spostamenti", sign(sav));
+    if(sp > 0){
+      h += row("Spese di manutenzione", "−" + euro(sp));
+      h += row(hasMonth ? "Netto del mese" : "Netto", sign(sav - sp), "tot");
+    } else h += row(hasMonth && !hasMezzo ? "Netto del mese" : "Totale", sign(sav), "tot");
+    box.innerHTML = h;
+    box.style.display = "block";
+  }
+
   function renderHistoryList(){
     var list = document.getElementById("historyList");
     if(trips.length===0){
       list.innerHTML = '<div class="empty-state">Ancora nessuno spostamento registrato.</div>';
+      document.getElementById("historyTotals").style.display = "none";
       return;
     }
     var shown = filteredTrips();
+    renderHistoryTotals(shown);
     if(shown.length===0){
       list.innerHTML = '<div class="empty-state">Nessuno spostamento per questo filtro.</div>';
       return;
@@ -2736,7 +2770,7 @@
   document.getElementById("bleDiagCopy").addEventListener("click", function(){ copyText(diagText || "(vuoto)", "✓ Risultato copiato"); });
   // ---------- Versione ----------
   // Da tenere uguale al numero di CACHE_NAME in sw.js (rotaia-cache-vNN) a ogni modifica.
-  var APP_VERSION = 25, APP_DATE = "27 ottobre 2026";
+  var APP_VERSION = 26, APP_DATE = "27 ottobre 2026";
   function renderVersion(){
     var el = document.getElementById("appVersion");
     var base = "Versione " + APP_VERSION + " · " + APP_DATE;

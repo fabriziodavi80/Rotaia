@@ -17,7 +17,7 @@ App personale (PWA, pagina unica) che confronta spostamenti in monopattino (Nine
 |---|---|
 | `index.html` | Tutta l'app (HTML, CSS, JS in un unico `<script>` finale, circa 2340 righe) |
 | `g3ble.js` | Comunicazione Bluetooth con il Max G3 (cifratura, abbinamento, lettura registri) |
-| `sw.js` | Service worker. `CACHE_NAME` attuale: `rotaia-cache-v25` |
+| `sw.js` | Service worker. `CACHE_NAME` attuale: `rotaia-cache-v26` |
 | `manifest.json`, `icon-192.png`, `icon-512.png`, `apple-touch-icon.png` | PWA |
 
 ### Funzioni principali
@@ -30,6 +30,7 @@ App personale (PWA, pagina unica) che confronta spostamenti in monopattino (Nine
 - **Lettura diagnostica** (Parametri, sola lettura): scarica blocchi di registri grezzi per la mappatura. Utile solo se serve scoprire nuovi registri.
 - **Backup:** esportazione completa JSON (spostamenti, ricariche, tragitti, parametri, letture, riferimento km), condivisione, import, CSV. Promemoria in Dashboard se non fai backup. Richiesta di archiviazione persistente al browser e avviso se il salvataggio fallisce.
 - **Prezzi bloccati:** ogni spostamento memorizza `pb` (benzina) e `pe` (elettricità) del momento. Pulsante in Parametri per riapplicare i prezzi attuali a tutto lo storico.
+- **Totali nello Storico:** con un filtro mese e/o mezzo, box `historyTotals` sopra l'elenco (km per mezzo, auto evitabili, % uso, risparmio, spese del mese, netto).
 - **Guida rapida** in Parametri, mantenuta aggiornata a ogni funzione.
 
 ### Come si calcola il risparmio
