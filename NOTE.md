@@ -17,7 +17,7 @@ App personale (PWA, pagina unica) che confronta spostamenti in monopattino (Nine
 |---|---|
 | `index.html` | Tutta l'app (HTML, CSS, JS in un unico `<script>` finale, circa 2340 righe) |
 | `g3ble.js` | Comunicazione Bluetooth con il Max G3 (cifratura, abbinamento, lettura registri) |
-| `sw.js` | Service worker. `CACHE_NAME` attuale: `rotaia-cache-v23` |
+| `sw.js` | Service worker. `CACHE_NAME` attuale: `rotaia-cache-v24` |
 | `manifest.json`, `icon-192.png`, `icon-512.png`, `apple-touch-icon.png` | PWA |
 
 ### Funzioni principali
@@ -76,7 +76,9 @@ Nel BMS i valori `0x15`..`0x1E` formano una tabella tensione/carica, non celle.
 ### Decisioni prese
 - **Sola lettura sul monopattino.** L'app non scrive nessun registro, non cambia impostazioni né firmware. Qualunque nuova funzione Bluetooth deve restare in lettura.
 - **Un solo file HTML, nessuna dipendenza.** Niente framework né build. JavaScript semplice (`var`, funzioni), niente moduli.
-- **Netto vs lordo** e segno negativo per l'auto: il netto è il numero principale. Dal 27/10 un viaggio in auto è negativo solo se evitabile (`autoEvitabile`): campo facoltativo `fatt` (true/false) scelto dall'utente, altrimenti automatico se `km <= autonomiaReale`. Non evitabile = risparmio e CO2 a 0.
+- **Netto vs lordo** e segno negativo per l'auto: il netto è il numero principale. Dal 27/10 un viaggio in auto è negativo solo se evitabile (`autoEvitabile`): campo facoltativo `fatt` (true/false) scelto dall'utente, altrimenti automatico se `km <= autonomiaReale`. Non evitabile = risparmio e CO2 a 0. Soglia automatica = `min(distanzaMax, autonomiaReale)`, `distanzaMax` default 18 km (l'utente fa al massimo 15-18 km al giorno).
+- **Recupero storico (`rec: true`):** km fatti prima di usare l'app (monopattino in uso da fine agosto/inizio settembre 2026), inseriti in un giorno. Contano in totale, pareggio e grafici; esclusi da media/proiezione, serie e km annui reali. Migrazione una tantum (`rotaia_rec_mig_v1`) li ha messi sui viaggi del 22/09 (109 km) e 28/09 (37 km).
+- **Proiezione e pareggio:** risparmio medio per giorno di calendario dal primo spostamento non-recupero a oggi (prima: per giorno registrato, che gonfiava); pareggio = oggi + (investimento − risparmio totale) / media.
 - **Prezzi bloccati per spostamento; consumo e autonomia retroattivi.** Il pulsante "Applica i prezzi attuali a tutto lo storico" è l'unico modo di cambiare i prezzi del passato.
 - **Km annui per la manutenzione:** con almeno 365 giorni dal primo spostamento in monopattino si usano i km reali in monopattino degli ultimi 365 giorni (`kmAnnuiReali`, minimo 100 km), altrimenti `params.kmAnnui`. Retroattivo come consumo e autonomia. Motivo: l'uso è stagionale (meno da novembre, di più da marzo), quindi il ritmo di un mese non vale come media annua. Cache invalidata da `tripsRev` in `saveJSON`.
 - **Il consumo misurato dalla batteria batte la media dei cicli** per l'autonomia (vedi sopra).
