@@ -328,6 +328,7 @@
       <div class="label">Risparmio netto finora</div>
       <div class="amount display"><span id="heroInt">0</span><span class="cents" id="heroCents">,00 €</span></div>
       <div class="breakeven">
+        <div class="be-detail" id="speseRow" style="display:none;"><span>Spese di manutenzione (già tolte)</span><span class="mono" id="speseAmount">—</span></div>
         <div class="be-detail" id="grossRow"><span>Risparmio lordo (solo km monopattino)</span><span class="mono" id="grossAmount">0,00 €</span></div>
         <div class="row"><span>Ammortamento monopattino</span><span id="beLabel">0%</span></div>
         <div class="bar-track"><div class="bar-fill" id="beBar" style="width:0%"></div></div>
@@ -495,6 +496,22 @@
     </div>
 
     <div class="card">
+      <h2>Spese di manutenzione</h2>
+      <form id="spesaForm" novalidate>
+        <label for="spesaDate">Data</label>
+        <input type="date" id="spesaDate">
+        <label for="spesaDesc">Descrizione</label>
+        <input type="text" id="spesaDesc" maxlength="40" placeholder="es. gomma posteriore">
+        <label for="spesaAmount">Importo (€)</label>
+        <input type="number" id="spesaAmount" min="0" step="0.01" inputmode="decimal" placeholder="es. 35">
+        <div class="field-error" id="spesaAmountError"></div>
+        <button type="submit" class="primary-btn">Aggiungi spesa</button>
+      </form>
+      <div id="speseList" style="margin-top:12px;"></div>
+      <div class="param-note">Le spese vengono tolte dal risparmio netto nel giorno in cui le registri (grafici e mese compresi), non dalla proiezione annua.</div>
+    </div>
+
+    <div class="card">
       <h2>Backup dati</h2>
       <div class="backup-btns">
         <button class="ghost-btn" id="fullExportBtn" type="button">Backup completo (JSON)</button>
@@ -503,7 +520,7 @@
         <button class="ghost-btn" id="importBtn" type="button">Importa da file (JSON o CSV)</button>
         <input type="file" id="importFile" accept=".json,.csv,application/json,text/csv" hidden>
       </div>
-      <div class="param-note">Il backup completo contiene spostamenti, ricariche, tragitti salvati, parametri, storico delle letture Bluetooth e riferimento del contachilometri; è quello da usare se cambi telefono. La chiave di abbinamento del monopattino non è inclusa, per sicurezza: conservala a parte (Parametri → Monopattino via Bluetooth). Il CSV contiene solo gli spostamenti, con il punto e virgola come separatore, compatibile con Excel in formato italiano. Importando, gli elementi già presenti non vengono duplicati.</div>
+      <div class="param-note">Il backup completo contiene spostamenti, ricariche, tragitti salvati, spese di manutenzione, parametri, storico delle letture Bluetooth e riferimento del contachilometri; è quello da usare se cambi telefono. La chiave di abbinamento del monopattino non è inclusa, per sicurezza: conservala a parte (Parametri → Monopattino via Bluetooth). Il CSV contiene solo gli spostamenti, con il punto e virgola come separatore, compatibile con Excel in formato italiano. Importando, gli elementi già presenti non vengono duplicati.</div>
       <div class="param-note" id="backupStatus"></div>
       <div class="param-note" id="storageStatus"></div>
     </div>
@@ -532,8 +549,9 @@
           <label for="pCostoIniziale">Costo acquisto monopattino, targa inclusa (€)</label>
           <input type="number" id="pCostoIniziale" min="0" step="0.01" inputmode="decimal">
 
-          <label for="pManutenzione">Manutenzione annua, assicurazione inclusa (€/anno)</label>
+          <label for="pManutenzione">Assicurazione e altri costi fissi annui (€/anno)</label>
           <input type="number" id="pManutenzione" min="0" step="1" inputmode="decimal">
+          <div class="param-note" style="margin-top:6px;">Solo spese certe, divise sui km. Gomme, pastiglie e altre riparazioni registrale in Storico → Spese di manutenzione quando le paghi.</div>
 
           <label for="pKmAnnui">Km annui stimati (per ripartire la manutenzione)</label>
           <input type="number" id="pKmAnnui" min="1" step="1" inputmode="decimal">
@@ -601,6 +619,10 @@
           <div class="guide-d">Il <b>netto</b> è il risparmio reale: per ogni spostamento in monopattino viene aggiunto, per ogni spostamento in auto che si poteva fare in monopattino viene sottratto (risparmio mancato). In automatico conta come evitabile un viaggio in auto entro la «Distanza massima in monopattino» dei Parametri (18 km, mai oltre l'autonomia); uno più lungo vale 0 e nello Storico è segnato «non evitabile». Quando registri un viaggio in auto puoi scegliere tu con «Si poteva fare in monopattino?» (per esempio «No» con pioggia o carico). Il <b>lordo</b> conta solo i km fatti in monopattino, senza sottrarre l'auto: è il numero da guardare se vuoi capire quanto ti sta facendo risparmiare il monopattino di per sé.</div>
         </div>
         <div class="guide-item">
+          <div class="guide-t">Spese di manutenzione 🔧</div>
+          <div class="guide-d">Nei Parametri metti solo i costi fissi certi, come l'assicurazione: vengono divisi sui km. Gomme, pastiglie e riparazioni registrale in Storico → Spese di manutenzione quando le paghi: l'importo viene tolto dal risparmio netto in quel giorno (anche nei grafici e nel mese) e allontana il pareggio, ma non entra nella proiezione annua.</div>
+        </div>
+        <div class="guide-item">
           <div class="guide-t">Proiezione, pareggio e recuperi</div>
           <div class="guide-d">La proiezione annua e la data di pareggio usano il risparmio medio per giorno di calendario, dal primo spostamento a oggi, contando anche i giorni senza uscite: è il ritmo attuale, quindi d'inverno scende e in primavera risale. Se inserisci in un colpo solo km fatti prima di usare l'app, spunta «Recupero di km passati»: quei km entrano nel totale e avvicinano il pareggio, ma non falsano medie, proiezione e serie. Nello Storico sono segnati «recupero».</div>
         </div>
@@ -638,7 +660,7 @@
         </div>
         <div class="guide-item">
           <div class="guide-t">Prezzi e storico</div>
-          <div class="guide-d">Ogni spostamento salva i prezzi di benzina ed elettricità del momento: se cambiano, il risparmio già accumulato resta uguale e i nuovi prezzi valgono solo per i km futuri. Consumo, autonomia e manutenzione al km invece si applicano anche al passato. La manutenzione annua è divisa sui km annui: con almeno un anno di dati l'app usa da sola i km reali in monopattino degli ultimi 12 mesi (inverno compreso), prima il valore che metti in Parametri. Se vuoi ricalcolare tutto con i prezzi attuali, usa «Applica i prezzi attuali a tutto lo storico» in Parametri.</div>
+          <div class="guide-d">Ogni spostamento salva i prezzi di benzina ed elettricità del momento: se cambiano, il risparmio già accumulato resta uguale e i nuovi prezzi valgono solo per i km futuri. Consumo, autonomia e manutenzione al km invece si applicano anche al passato. L'assicurazione (e gli altri costi fissi annui dei Parametri) è divisa sui km annui: con almeno un anno di dati l'app usa da sola i km reali in monopattino degli ultimi 12 mesi (inverno compreso), prima il valore che metti in Parametri. Se vuoi ricalcolare tutto con i prezzi attuali, usa «Applica i prezzi attuali a tutto lo storico» in Parametri.</div>
         </div>
         <div class="guide-item">
           <div class="guide-t">Backup dei dati</div>
@@ -694,7 +716,7 @@
     capacitaBatteria: 0.597,  // kWh
     autonomiaReale: 35,       // km per carica (uso reale, collina)
     costoIniziale: 773.18,    // 736,82 + 36,36 targa
-    manutenzioneAnnua: 141,   // 50 + 91 assicurazione
+    manutenzioneAnnua: 91,    // solo costi fissi certi (assicurazione); la manutenzione vera va nelle Spese
     kmAnnui: 1500,            // base per ripartire la manutenzione al km
     distanzaMax: 18,          // km oltre i quali un viaggio in auto non si farebbe in monopattino
     obiettivoMensile: 0       // 0 = nessun obiettivo impostato
@@ -736,6 +758,14 @@
   }
 
   var params = Object.assign({}, DEFAULT_PARAMS, loadJSON(PARAMS_KEY, {}));
+  // Una tantum (27/10/2026): i 141 €/anno erano 91 di assicurazione + 50 di manutenzione stimata.
+  // Da ora resta solo l'assicurazione; la manutenzione si registra quando si paga.
+  (function(){
+    var MIG = "rotaia_manut_mig_v1";
+    try{ if(localStorage.getItem(MIG)) return; }catch(e){ return; }
+    if(params.manutenzioneAnnua === 141){ params.manutenzioneAnnua = 91; try{ localStorage.setItem(PARAMS_KEY, JSON.stringify(params)); }catch(e){} }
+    try{ localStorage.setItem(MIG, "1"); }catch(e){}
+  })();
   // Una tantum (27/10/2026): i due inserimenti di settembre che riassumono km fatti prima di usare
   // l'app diventano "recupero storico". Riconosciuti per id e km esatti; poi non si ripete.
   (function(){
@@ -751,6 +781,10 @@
   var trips = loadJSON(TRIPS_KEY, []);
   var routes = loadJSON(ROUTES_KEY, []);
   var charges = loadJSON(CHARGES_KEY, []);
+  // Spese di manutenzione effettive (gomme, pastiglie…): si sottraggono dal netto nel giorno in cui si pagano
+  var SPESE_KEY = "rotaia_spese_v1";
+  var spese = loadJSON(SPESE_KEY, []);
+  function speseTot(filtro){ return spese.filter(filtro || function(){ return true; }).reduce(function(s,x){ return s + x.amount; }, 0); }
 
   // Migrazione una tantum: gli spostamenti già registrati vengono "ancorati" ai prezzi attuali,
   // da qui in poi il loro risparmio non cambia più se i prezzi cambiano.
@@ -988,7 +1022,10 @@
   var MONTHS = ["gen","feb","mar","apr","mag","giu","lug","ago","set","ott","nov","dic"];
 
   function renderDashboard(){
-    var totalSaving = trips.reduce(function(s,t){ return s + tripSaving(t); }, 0);
+    var spTot = speseTot();
+    var totalSaving = trips.reduce(function(s,t){ return s + tripSaving(t); }, 0) - spTot;
+    document.getElementById("speseRow").style.display = spTot > 0 ? "flex" : "none";
+    document.getElementById("speseAmount").textContent = "−" + euro(spTot);
     var absTot = Math.abs(totalSaving).toFixed(2).split(".");
     document.getElementById("heroInt").textContent = (totalSaving < 0 && Number(absTot[0]+"."+absTot[1]) !== 0 ? "−" : "") + absTot[0];
     document.getElementById("heroCents").textContent = "," + absTot[1] + " €";
@@ -1049,7 +1086,8 @@
     var now = new Date();
     var monthKey = now.getFullYear()+"-"+String(now.getMonth()+1).padStart(2,"0");
     var monthSaving = trips.filter(function(t){ return t.date.slice(0,7)===monthKey; })
-      .reduce(function(s,t){ return s + tripSaving(t); },0);
+      .reduce(function(s,t){ return s + tripSaving(t); },0)
+      - speseTot(function(x){ return x.date.slice(0,7) === monthKey; });
     document.getElementById("statMonth").textContent = euro(monthSaving);
 
     var totalKm = kmScooter + kmCar;
@@ -1107,6 +1145,10 @@
       var b = buckets.find(function(x){return x.key===key;});
       if(b) b.value += tripSaving(t);
     });
+    spese.forEach(function(x){
+      var b = buckets.find(function(y){ return y.key === x.date.slice(0,7); });
+      if(b) b.value -= x.amount;
+    });
     var max = Math.max.apply(null, buckets.map(function(b){return Math.abs(b.value);}).concat([1]));
     var w = 300, h = 158, padB = 20, padT = 16, barW = 28, gap = (w - barW*6)/7;
     var barMaxH = h - padB - padT;
@@ -1136,6 +1178,7 @@
   function buildCumulativeSeries(){
     var byDate = {};
     trips.forEach(function(t){ byDate[t.date] = (byDate[t.date] || 0) + tripSaving(t); });
+    spese.forEach(function(x){ byDate[x.date] = (byDate[x.date] || 0) - x.amount; });
     var dates = Object.keys(byDate).sort();
     var running = 0;
     return dates.map(function(d){ running += byDate[d]; return { date: d, value: running }; });
@@ -1814,8 +1857,43 @@
     renderHistoryList();
   });
 
+  function renderSpese(){
+    var wrap = document.getElementById("speseList");
+    if(!spese.length){ wrap.innerHTML = '<div class="param-note" style="margin-top:0;">Nessuna spesa registrata.</div>'; return; }
+    var sorted = spese.slice().sort(function(a,b){ return a.date < b.date ? 1 : -1; });
+    wrap.innerHTML = sorted.map(function(x){
+      var dateFmt = new Date(x.date+"T00:00:00").toLocaleDateString("it-IT",{day:"numeric",month:"short",year:"numeric"});
+      return '<div class="charge-row"><div><div class="c-main">'+escHtml(x.desc)+' · −'+euro(x.amount)+'</div><div class="c-sub">'+dateFmt+'</div></div>'
+        + '<button class="trip-del" data-id="'+escHtml(x.id)+'" aria-label="Elimina">×</button></div>';
+    }).join("") + '<div class="param-note" style="margin-top:6px;">Totale: −' + euro(speseTot()) + '</div>';
+    wrap.querySelectorAll(".trip-del").forEach(function(btn){
+      btn.addEventListener("click", function(){
+        if(!confirm("Eliminare questa spesa?")) return;
+        spese = spese.filter(function(x){ return x.id !== btn.getAttribute("data-id"); });
+        saveJSON(SPESE_KEY, spese);
+        renderSpese(); renderDashboard();
+        showToast("Spesa eliminata");
+      });
+    });
+  }
+  document.getElementById("spesaDate").value = todayStr();
+  document.getElementById("spesaForm").addEventListener("submit", function(e){
+    e.preventDefault();
+    clearFieldError("spesaAmount");
+    var amount = parseFloat(document.getElementById("spesaAmount").value);
+    var date = normalizeDate(document.getElementById("spesaDate").value) || todayStr();
+    if(!isFinite(amount) || amount <= 0 || amount > 10000){ setFieldError("spesaAmount", "Inserisci l'importo in euro (es. 35)."); return; }
+    spese.push({ id: newId(), date: date, desc: cleanLabel(document.getElementById("spesaDesc").value || "Manutenzione"), amount: Math.round(amount*100)/100 });
+    saveJSON(SPESE_KEY, spese);
+    document.getElementById("spesaDesc").value = ""; document.getElementById("spesaAmount").value = "";
+    document.getElementById("spesaDate").value = todayStr();
+    renderSpese(); renderDashboard();
+    showToast("✓ Spesa registrata: tolta dal risparmio netto");
+  });
+
   function renderHistory(){
     fillMonthFilter();
+    renderSpese();
     renderHistoryList();
     renderBackupStatus();
   }
@@ -1912,7 +1990,7 @@
     return {
       app: "max-g3-saving", format: 1, exportedAt: new Date().toISOString(),
       data: {
-        trips: trips, charges: charges, routes: routes, params: params,
+        trips: trips, charges: charges, routes: routes, params: params, spese: spese,
         reads: loadJSON(READS_KEY, []), odo: loadJSON(ODO_KEY, null), soc: loadJSON(SOC_KEY, null)
       }
     };
@@ -2123,6 +2201,17 @@
       charges.push({ id:id, date:date, km:km }); added.charges++;
     });
 
+    have = {}; spese.forEach(function(x){ have[x.id] = true; }); added.spese = 0;
+    arr(d.spese).forEach(function(x){
+      if(!x) return;
+      var date = normalizeDate(x.date), amount = Number(x.amount);
+      if(!date || !isFinite(amount) || amount <= 0 || amount > 10000) return;
+      var id = validId(x.id) ? x.id : newId();
+      if(have[id]) return;
+      have[id] = true;
+      spese.push({ id:id, date:date, desc:cleanLabel(x.desc || "Manutenzione"), amount: Math.round(amount*100)/100 }); added.spese++;
+    });
+
     have = {}; routes.forEach(function(r){ have[r.id] = true; });
     arr(d.routes).forEach(function(r){
       if(!r) return;
@@ -2157,6 +2246,8 @@
         var v = Number(d.params[k]);
         if(isFinite(v) && (k === "obiettivoMensile" ? v >= 0 : v > 0)) np[k] = v;
       });
+      // backup precedenti al 27/10/2026: 141 = 91 assicurazione + 50 manutenzione stimata
+      if(np.manutenzioneAnnua === 141) np.manutenzioneAnnua = 91;
     }
     params = Object.assign({}, DEFAULT_PARAMS, params, np);
 
@@ -2173,10 +2264,10 @@
     }
 
     saveJSON(TRIPS_KEY, trips); saveJSON(CHARGES_KEY, charges); saveJSON(ROUTES_KEY, routes);
-    saveJSON(READS_KEY, reads); saveJSON(PARAMS_KEY, params);
+    saveJSON(READS_KEY, reads); saveJSON(PARAMS_KEY, params); saveJSON(SPESE_KEY, spese);
     renderHistory();
     renderDashboard();
-    alert("Backup importato: " + added.trips + " spostamenti, " + added.charges + " ricariche, " + added.routes + " tragitti e "
+    alert("Backup importato: " + added.trips + " spostamenti, " + added.charges + " ricariche, " + added.routes + " tragitti, " + added.spese + " spese e "
       + added.reads + " letture aggiunti. Gli elementi già presenti sono stati saltati.");
   }
 
@@ -2645,7 +2736,7 @@
   document.getElementById("bleDiagCopy").addEventListener("click", function(){ copyText(diagText || "(vuoto)", "✓ Risultato copiato"); });
   // ---------- Versione ----------
   // Da tenere uguale al numero di CACHE_NAME in sw.js (rotaia-cache-vNN) a ogni modifica.
-  var APP_VERSION = 24, APP_DATE = "27 ottobre 2026";
+  var APP_VERSION = 25, APP_DATE = "27 ottobre 2026";
   function renderVersion(){
     var el = document.getElementById("appVersion");
     var base = "Versione " + APP_VERSION + " · " + APP_DATE;

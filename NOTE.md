@@ -17,7 +17,7 @@ App personale (PWA, pagina unica) che confronta spostamenti in monopattino (Nine
 |---|---|
 | `index.html` | Tutta l'app (HTML, CSS, JS in un unico `<script>` finale, circa 2340 righe) |
 | `g3ble.js` | Comunicazione Bluetooth con il Max G3 (cifratura, abbinamento, lettura registri) |
-| `sw.js` | Service worker. `CACHE_NAME` attuale: `rotaia-cache-v24` |
+| `sw.js` | Service worker. `CACHE_NAME` attuale: `rotaia-cache-v25` |
 | `manifest.json`, `icon-192.png`, `icon-512.png`, `apple-touch-icon.png` | PWA |
 
 ### Funzioni principali
@@ -67,7 +67,7 @@ Board VCU `0x16`, BMS `0x07` (sul tuo G3). Gli indici sono parole da 2 byte: un 
 Nel BMS i valori `0x15`..`0x1E` formano una tabella tensione/carica, non celle.
 
 ### Chiavi `localStorage`
-`rotaia_trips_v1`, `rotaia_params_v2`, `rotaia_routes_v1`, `rotaia_charges_v1`, `rotaia_theme_v1`, `rotaia_last_backup_v1`, `rotaia_backup_snooze_v1`, `rotaia_odo_v1`, `rotaia_g3soc_v1`, `rotaia_g3reads_v1`, `rotaia_g3health_v1`, `rotaia_snap_v1` (flag migrazione prezzi). Bluetooth: `rotaia_g3_key_v1` (chiave di abbinamento, mai nel backup), `rotaia_g3_pending_v1`, `rotaia_g3_gen_v1`, `rotaia_g3_device_v1`, `rotaia_g3_bms_v1`.
+`rotaia_trips_v1`, `rotaia_params_v2`, `rotaia_routes_v1`, `rotaia_charges_v1`, `rotaia_theme_v1`, `rotaia_last_backup_v1`, `rotaia_backup_snooze_v1`, `rotaia_odo_v1`, `rotaia_g3soc_v1`, `rotaia_g3reads_v1`, `rotaia_g3health_v1`, `rotaia_snap_v1` (flag migrazione prezzi), `rotaia_spese_v1`, `rotaia_rec_mig_v1`, `rotaia_manut_mig_v1`. Bluetooth: `rotaia_g3_key_v1` (chiave di abbinamento, mai nel backup), `rotaia_g3_pending_v1`, `rotaia_g3_gen_v1`, `rotaia_g3_device_v1`, `rotaia_g3_bms_v1`.
 
 ---
 
@@ -77,6 +77,7 @@ Nel BMS i valori `0x15`..`0x1E` formano una tabella tensione/carica, non celle.
 - **Sola lettura sul monopattino.** L'app non scrive nessun registro, non cambia impostazioni né firmware. Qualunque nuova funzione Bluetooth deve restare in lettura.
 - **Un solo file HTML, nessuna dipendenza.** Niente framework né build. JavaScript semplice (`var`, funzioni), niente moduli.
 - **Netto vs lordo** e segno negativo per l'auto: il netto è il numero principale. Dal 27/10 un viaggio in auto è negativo solo se evitabile (`autoEvitabile`): campo facoltativo `fatt` (true/false) scelto dall'utente, altrimenti automatico se `km <= autonomiaReale`. Non evitabile = risparmio e CO2 a 0. Soglia automatica = `min(distanzaMax, autonomiaReale)`, `distanzaMax` default 18 km (l'utente fa al massimo 15-18 km al giorno).
+- **Manutenzione (27/10):** `manutenzioneAnnua` ora contiene solo i costi fissi certi (assicurazione 91 €/anno; migrazione `rotaia_manut_mig_v1` e import convertono il vecchio 141 in 91). Le spese reali (gomme, pastiglie) vanno in `rotaia_spese_v1` `{id,date,desc,amount}`: tolte dal netto, dal mese, dai grafici e dal pareggio nel giorno registrato; non dalla proiezione né dal lordo. Incluse nel backup completo (`data.spese`). Card in Storico.
 - **Recupero storico (`rec: true`):** km fatti prima di usare l'app (monopattino in uso da fine agosto/inizio settembre 2026), inseriti in un giorno. Contano in totale, pareggio e grafici; esclusi da media/proiezione, serie e km annui reali. Migrazione una tantum (`rotaia_rec_mig_v1`) li ha messi sui viaggi del 22/09 (109 km) e 28/09 (37 km).
 - **Proiezione e pareggio:** risparmio medio per giorno di calendario dal primo spostamento non-recupero a oggi (prima: per giorno registrato, che gonfiava); pareggio = oggi + (investimento − risparmio totale) / media.
 - **Prezzi bloccati per spostamento; consumo e autonomia retroattivi.** Il pulsante "Applica i prezzi attuali a tutto lo storico" è l'unico modo di cambiare i prezzi del passato.
