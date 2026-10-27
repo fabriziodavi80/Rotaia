@@ -459,6 +459,15 @@
         <input type="number" id="tripKm" min="0" step="0.1" inputmode="decimal" placeholder="es. 6.5">
         <div class="field-error" id="tripKmError"></div>
         <div class="ble-box" id="tripBle" style="display:none;"></div>
+        <div id="fattBox" style="display:none;">
+          <label>Si poteva fare in monopattino?</label>
+          <div class="seg seg-3">
+            <button type="button" id="fattAuto">Automatico</button>
+            <button type="button" id="fattSi" class="r">Sì</button>
+            <button type="button" id="fattNo" class="t">No</button>
+          </div>
+          <div class="param-note" id="fattNote" style="margin-top:8px;"></div>
+        </div>
 
         <button type="submit" class="primary-btn" id="tripSubmitBtn">Salva spostamento</button>
         <button type="button" class="ghost-btn" id="saveRouteBtn">☆ Salva come tragitto</button>
@@ -580,7 +589,7 @@
       <div class="details-body">
         <div class="guide-item">
           <div class="guide-t">Risparmio netto vs lordo</div>
-          <div class="guide-d">Il <b>netto</b> è il risparmio reale: per ogni spostamento in monopattino viene aggiunto, per ogni spostamento in auto viene sottratto (perché è un risparmio mancato). Se usi i due mezzi per km simili, il netto resta basso anche se usi molto il monopattino. Il <b>lordo</b> conta solo i km fatti in monopattino, senza sottrarre l'auto: è il numero da guardare se vuoi capire quanto ti sta facendo risparmiare il monopattino di per sé.</div>
+          <div class="guide-d">Il <b>netto</b> è il risparmio reale: per ogni spostamento in monopattino viene aggiunto, per ogni spostamento in auto che si poteva fare in monopattino viene sottratto (risparmio mancato). In automatico conta come evitabile un viaggio in auto entro l'autonomia; uno più lungo vale 0 e nello Storico è segnato «non evitabile». Quando registri un viaggio in auto puoi scegliere tu con «Si poteva fare in monopattino?» (per esempio «No» con pioggia o carico). Il <b>lordo</b> conta solo i km fatti in monopattino, senza sottrarre l'auto: è il numero da guardare se vuoi capire quanto ti sta facendo risparmiare il monopattino di per sé.</div>
         </div>
         <div class="guide-item">
           <div class="guide-t">Autonomia e ricariche</div>
@@ -807,7 +816,17 @@
     var d = tripKmCosts(t);
     return t.km * (t.mezzo === "monopattino" ? d.auto : d.scooter);
   }
-  function tripSaving(t){ return tripAltCost(t) - tripCost(t); }
+  // Un viaggio in auto conta come "risparmio mancato" solo se si poteva fare in monopattino.
+  // Scelta esplicita sul viaggio (t.fatt true/false) oppure, in automatico, se è entro l'autonomia.
+  function autoEvitabile(t){
+    if(t.mezzo !== "auto") return false;
+    if(typeof t.fatt === "boolean") return t.fatt;
+    return t.km <= params.autonomiaReale;
+  }
+  function tripSaving(t){
+    if(t.mezzo === "auto" && !autoEvitabile(t)) return 0;
+    return tripAltCost(t) - tripCost(t);
+  }
 
   // Il foglio Excel confronta il risparmio con il solo costo di acquisto
   function investimentoTotale(){ return params.costoIniziale; }
@@ -816,7 +835,8 @@
   function tripCO2(t){
     var litri = t.km * (params.consumoAuto/100);
     var co2 = litri * CO2_PER_LITRO;
-    return t.mezzo === "monopattino" ? co2 : -co2;
+    if(t.mezzo === "monopattino") return co2;
+    return autoEvitabile(t) ? -co2 : 0;
   }
   function fmtCO2(kg){
     var neg = kg < 0;
@@ -1529,7 +1549,29 @@
     else { btnCar.classList.add("on"); btnScooter.classList.remove("on"); }
     var tb = document.getElementById("tripBle");
     if(tb && tb.innerHTML) tb.style.display = m === "monopattino" ? "block" : "none";
+    document.getElementById("fattBox").style.display = m === "auto" ? "block" : "none";
+    renderFatt();
   }
+  // "Si poteva fare in monopattino?" per i viaggi in auto: null = automatico (entro l'autonomia)
+  var fattSel = null;
+  function renderFatt(){
+    var km = parseFloat(document.getElementById("tripKm").value);
+    var lim = Math.round(params.autonomiaReale);
+    var autoSi = isFinite(km) && km > 0 ? km <= params.autonomiaReale : null;
+    document.getElementById("fattAuto").textContent = "Automatico";
+    [["fattAuto", null], ["fattSi", true], ["fattNo", false]].forEach(function(x){
+      document.getElementById(x[0]).classList.toggle("on", x[1] === null ? fattSel == null : fattSel === x[1]);
+    });
+    document.getElementById("fattNote").textContent = fattSel == null
+      ? (autoSi === null ? "In automatico conta come risparmio mancato solo se è entro l'autonomia (" + lim + " km)."
+        : autoSi ? "Entro l'autonomia (" + lim + " km): conta come risparmio mancato."
+        : "Oltre l'autonomia (" + lim + " km): non conta, in monopattino non si poteva fare.")
+      : fattSel ? "Conta come risparmio mancato." : "Non conta: per questo viaggio l'auto era necessaria (pioggia, carico, distanza…).";
+  }
+  [["fattAuto", null], ["fattSi", true], ["fattNo", false]].forEach(function(x){
+    document.getElementById(x[0]).addEventListener("click", function(){ fattSel = x[1]; renderFatt(); });
+  });
+  document.getElementById("tripKm").addEventListener("input", function(){ if(mezzoSel === "auto") renderFatt(); });
   btnScooter.addEventListener("click", function(){ selectMezzo("monopattino"); });
   btnCar.addEventListener("click", function(){ selectMezzo("auto"); });
 
@@ -1542,6 +1584,7 @@
     document.getElementById("cancelEditBtn").style.display = "none";
     document.getElementById("tripDate").value = todayStr();
     document.getElementById("tripKm").value = "";
+    fattSel = null;
     pendingOdo = null;
     var tbn = document.querySelector("#tripBle .ble-note"); if(tbn) tbn.textContent = "";
     hideDayPicker();
@@ -1556,6 +1599,7 @@
     editingId = id;
     document.getElementById("tripDate").value = t.date;
     document.getElementById("tripKm").value = t.km;
+    fattSel = typeof t.fatt === "boolean" ? t.fatt : null;
     selectMezzo(t.mezzo);
     document.getElementById("addTitle").textContent = "Modifica spostamento";
     document.getElementById("tripSubmitBtn").textContent = "Salva modifiche";
@@ -1574,6 +1618,11 @@
     resetAddForm();
     showView("add");
   });
+
+  function setFatt(t){
+    if(t.mezzo === "auto" && typeof fattSel === "boolean") t.fatt = fattSel; else delete t.fatt;
+    return t;
+  }
 
   document.getElementById("tripForm").addEventListener("submit", function(e){
     e.preventDefault();
@@ -1599,9 +1648,9 @@
     var newTrip = null;
     if(editingId){
       var t = trips.find(function(x){ return x.id === editingId; });
-      if(t){ t.date = date; t.mezzo = mezzoSel; t.km = km; }
+      if(t){ t.date = date; t.mezzo = mezzoSel; t.km = km; setFatt(t); }
     } else {
-      newTrip = stampPrices({ id: Date.now()+"-"+Math.random().toString(36).slice(2,7), date: date, mezzo: mezzoSel, km: km });
+      newTrip = setFatt(stampPrices({ id: Date.now()+"-"+Math.random().toString(36).slice(2,7), date: date, mezzo: mezzoSel, km: km }));
       trips.push(newTrip);
     }
     trips.sort(function(a,b){ return a.date < b.date ? 1 : -1; });
@@ -1728,7 +1777,7 @@
             ? '<svg viewBox="0 0 24 24" fill="none" stroke="var(--teal-ink)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="6" cy="18" r="2.2"/><circle cx="17" cy="18" r="2.2"/><path d="M8 18h6l3-9h2M11 18l3-9M6 9h4"/></svg>'
             : '<svg viewBox="0 0 24 24" fill="none" stroke="var(--rust-ink)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 13l1.5-4.5A2 2 0 0 1 6.4 7h11.2a2 2 0 0 1 1.9 1.5L21 13"/><rect x="3" y="13" width="18" height="5" rx="1.5"/><circle cx="7" cy="18" r="1.6"/><circle cx="17" cy="18" r="1.6"/></svg>')
         + '</div>'
-        + '<div class="trip-mid"><div class="d">'+dateFmt+' · '+(isScooter?"Monopattino":"Auto")+'</div>'
+        + '<div class="trip-mid"><div class="d">'+dateFmt+' · '+(isScooter?"Monopattino":"Auto"+(autoEvitabile(t)?"":" · non evitabile"))+'</div>'
         + '<div class="k">'+t.km.toString().replace(".",",")+' km</div></div>'
         + '<div class="trip-val '+(saving>=0?"pos":"neg")+' mono">'+(saving>=0?"+":"")+euro(saving)+'</div>'
         + '<button class="trip-del" data-id="'+t.id+'" aria-label="Elimina">×</button>'
@@ -1992,6 +2041,7 @@
       var pbv = Number(t.pb), pev = Number(t.pe);
       if(t.pb != null && isFinite(pbv) && pbv > 0 && pbv < 100) nt.pb = pbv;
       if(t.pe != null && isFinite(pev) && pev > 0 && pev < 100) nt.pe = pev;
+      if(mezzo === "auto" && typeof t.fatt === "boolean") nt.fatt = t.fatt;
       trips.push(stampPrices(nt)); added.trips++;
     });
     trips.sort(function(a,b){ return a.date < b.date ? 1 : -1; });
@@ -2525,7 +2575,7 @@
   document.getElementById("bleDiagCopy").addEventListener("click", function(){ copyText(diagText || "(vuoto)", "✓ Risultato copiato"); });
   // ---------- Versione ----------
   // Da tenere uguale al numero di CACHE_NAME in sw.js (rotaia-cache-vNN) a ogni modifica.
-  var APP_VERSION = 21, APP_DATE = "24 ottobre 2026";
+  var APP_VERSION = 22, APP_DATE = "27 ottobre 2026";
   function renderVersion(){
     var el = document.getElementById("appVersion");
     var base = "Versione " + APP_VERSION + " · " + APP_DATE;

@@ -1,6 +1,6 @@
 # Max G3 Saving — note di passaggio per una nuova chat
 
-Aggiornato: 24 ottobre 2026. Leggere questo file prima di toccare il codice.
+Aggiornato: 27 ottobre 2026. Leggere questo file prima di toccare il codice.
 
 App personale (PWA, pagina unica) che confronta spostamenti in monopattino (Ninebot Max G3) e in auto, calcola il risparmio e legge i dati del monopattino via Bluetooth. Un solo utente, nessun server, nessun account.
 
@@ -17,7 +17,7 @@ App personale (PWA, pagina unica) che confronta spostamenti in monopattino (Nine
 |---|---|
 | `index.html` | Tutta l'app (HTML, CSS, JS in un unico `<script>` finale, circa 2340 righe) |
 | `g3ble.js` | Comunicazione Bluetooth con il Max G3 (cifratura, abbinamento, lettura registri) |
-| `sw.js` | Service worker. `CACHE_NAME` attuale: `rotaia-cache-v21` |
+| `sw.js` | Service worker. `CACHE_NAME` attuale: `rotaia-cache-v22` |
 | `manifest.json`, `icon-192.png`, `icon-512.png`, `apple-touch-icon.png` | PWA |
 
 ### Funzioni principali
@@ -76,7 +76,7 @@ Nel BMS i valori `0x15`..`0x1E` formano una tabella tensione/carica, non celle.
 ### Decisioni prese
 - **Sola lettura sul monopattino.** L'app non scrive nessun registro, non cambia impostazioni né firmware. Qualunque nuova funzione Bluetooth deve restare in lettura.
 - **Un solo file HTML, nessuna dipendenza.** Niente framework né build. JavaScript semplice (`var`, funzioni), niente moduli.
-- **Netto vs lordo** e segno negativo per l'auto: il netto è il numero principale.
+- **Netto vs lordo** e segno negativo per l'auto: il netto è il numero principale. Dal 27/10 un viaggio in auto è negativo solo se evitabile (`autoEvitabile`): campo facoltativo `fatt` (true/false) scelto dall'utente, altrimenti automatico se `km <= autonomiaReale`. Non evitabile = risparmio e CO2 a 0.
 - **Prezzi bloccati per spostamento; consumo e autonomia retroattivi.** Il pulsante "Applica i prezzi attuali a tutto lo storico" è l'unico modo di cambiare i prezzi del passato.
 - **Il consumo misurato dalla batteria batte la media dei cicli** per l'autonomia (vedi sopra).
 - **Importazione prudente:** gli id validi si conservano, quelli non validi si rigenerano; nomi dei tragitti ripuliti (`cleanLabel`) e protetti nel rendering (`escHtml`); parametri validati uno a uno; la chiave Bluetooth non entra nel backup.
