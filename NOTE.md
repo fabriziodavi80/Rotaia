@@ -17,7 +17,7 @@ App personale (PWA, pagina unica) che confronta spostamenti in monopattino (Nine
 |---|---|
 | `index.html` | Tutta l'app (HTML, CSS, JS in un unico `<script>` finale, circa 2340 righe) |
 | `g3ble.js` | Comunicazione Bluetooth con il Max G3 (cifratura, abbinamento, lettura registri) |
-| `sw.js` | Service worker. `CACHE_NAME` attuale: `rotaia-cache-v28` |
+| `sw.js` | Service worker. `CACHE_NAME` attuale: `rotaia-cache-v29` |
 | `manifest.json`, `icon-192.png`, `icon-512.png`, `apple-touch-icon.png` | PWA |
 
 ### Funzioni principali
@@ -85,7 +85,7 @@ Nel BMS i valori `0x15`..`0x1E` formano una tabella tensione/carica, non celle.
 - **Km annui per la manutenzione:** con almeno 365 giorni dal primo spostamento in monopattino si usano i km reali in monopattino degli ultimi 365 giorni (`kmAnnuiReali`, minimo 100 km), altrimenti `params.kmAnnui`. Retroattivo come consumo e autonomia. Motivo: l'uso è stagionale (meno da novembre, di più da marzo), quindi il ritmo di un mese non vale come media annua. Cache invalidata da `tripsRev` in `saveJSON`.
 - **Il consumo misurato dalla batteria batte la media dei cicli** per l'autonomia (vedi sopra).
 - **Importazione prudente:** gli id validi si conservano, quelli non validi si rigenerano; nomi dei tragitti ripuliti (`cleanLabel`) e protetti nel rendering (`escHtml`); parametri validati uno a uno; la chiave Bluetooth non entra nel backup.
-- **Una lettura, ricarica e km insieme (28/10):** `kmDaLettura(r)` calcola i km nuovi (usata da Aggiungi e da Registra ricarica). Dal modulo ricarica compare `chargeTripBox` «Registra anche N km» (spuntato, con giorno): al salvataggio della ricarica si crea lo spostamento (id con istante −1 ms) e si aggiorna `rotaia_odo_v1` con `skipId`. Da Aggiungi col caricatore collegato, `offerCharge` chiama `submitTrip({silent:true})` prima di aprire la ricarica.
+- **Una lettura, ricarica e km insieme (28/10):** `kmDaLettura(r)` calcola i km nuovi (usata da Aggiungi e da Registra ricarica). Dal modulo ricarica compare `chargeTripBox` «Registra anche N km» (spuntato, con giorno): al salvataggio della ricarica si crea lo spostamento (id con istante −1 ms) e si aggiorna `rotaia_odo_v1` con `skipId`. Da Aggiungi col caricatore collegato, `offerCharge` salva in un tocco i km (`submitTrip({silent:true})`) e la ricarica (prima apriva il modulo e l'utente credeva di aver già salvato: la barra restava alla % dell'attacco). `rotaia_g3soc_v1` ha `plugged`: una lettura col caricatore non vale come carica attuale (`stimaKmDaBatteria` → null).
 - **Giorno dei km letti via Bluetooth:** se l'ultima lettura (`ref.date` in `rotaia_odo_v1`) è di un giorno precedente, l'app preseleziona il giorno più probabile (`giornoProbabile`: prima delle 12 «Ieri», poi «Oggi») e mostra i pulsanti Oggi/Ieri/… (fino a 7 giorni) per cambiarlo; nessun blocco al salvataggio (l'utente non voleva un blocco). Il monopattino non ha un registro con i km per giorno.
 - **Rilevamento "km già inseriti a mano":** l'istante di creazione è nell'id (`Date.now()-xxxxx`) e serve per sottrarre i km manuali dalla proposta Bluetooth.
 - **"Stato batteria":** per ora solo ultima lettura; nessuna storia dei valori e nessun grafico.

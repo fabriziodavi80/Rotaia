@@ -642,7 +642,7 @@
         </div>
         <div class="guide-item">
           <div class="guide-t">Lettura dal monopattino 🛴</div>
-          <div class="guide-d">Con il monopattino acceso e SHU chiusa, «Leggi km dal monopattino» legge il contachilometri e compila i km fatti dall'ultima lettura. La prima volta salva solo il punto di partenza, perché non c'è ancora un riferimento precedente con cui calcolare la differenza: se hai già percorso km oggi prima di questa prima lettura, il campo km resta vuoto e vanno inseriti a mano (il contachilometri letto li include già). Se dopo l'ultima lettura hai registrato spostamenti in monopattino a mano, l'app li toglie da sola dal valore proposto, così non vengono contati due volte (vale dalla seconda lettura confermata in poi). Il monopattino non registra in che giorno hai guidato: se l'ultima lettura è di un giorno precedente, l'app propone il giorno più probabile (la mattina «Ieri», dal pomeriggio «Oggi») e mostra i pulsanti Oggi, Ieri, … per cambiarlo prima di salvare. Se leggi ogni sera, la data è sempre quella giusta. In «Registra ricarica» lo stesso pulsante compila il contachilometri e, se hai fatto km dall'ultima lettura, propone «Registra anche … in monopattino» (con il giorno): salvando la ricarica si salvano anche quei km. Se invece leggi da «Aggiungi» con il caricatore collegato, il pulsante della ricarica salva prima i km letti e poi apre la ricarica, così non perdi nulla. La prima lettura richiede l'abbinamento: premi una volta il pulsante di accensione quando l'app lo chiede.</div>
+          <div class="guide-d">Con il monopattino acceso e SHU chiusa, «Leggi km dal monopattino» legge il contachilometri e compila i km fatti dall'ultima lettura. La prima volta salva solo il punto di partenza, perché non c'è ancora un riferimento precedente con cui calcolare la differenza: se hai già percorso km oggi prima di questa prima lettura, il campo km resta vuoto e vanno inseriti a mano (il contachilometri letto li include già). Se dopo l'ultima lettura hai registrato spostamenti in monopattino a mano, l'app li toglie da sola dal valore proposto, così non vengono contati due volte (vale dalla seconda lettura confermata in poi). Il monopattino non registra in che giorno hai guidato: se l'ultima lettura è di un giorno precedente, l'app propone il giorno più probabile (la mattina «Ieri», dal pomeriggio «Oggi») e mostra i pulsanti Oggi, Ieri, … per cambiarlo prima di salvare. Se leggi ogni sera, la data è sempre quella giusta. In «Registra ricarica» lo stesso pulsante compila il contachilometri e, se hai fatto km dall'ultima lettura, propone «Registra anche … in monopattino» (con il giorno): salvando la ricarica si salvano anche quei km. Se invece leggi da «Aggiungi» con il caricatore collegato, compare il pulsante «salva i km e registra la ricarica»: un tocco registra entrambi (la ricarica si corregge dallo Storico ricariche). Una lettura fatta col caricatore collegato non vale come carica attuale, perché la % sta salendo: la barra riparte dal 100% appena la ricarica è registrata. La prima lettura richiede l'abbinamento: premi una volta il pulsante di accensione quando l'app lo chiede.</div>
         </div>
         <div class="guide-item">
           <div class="guide-t">Abbinamento e SHU 🔑</div>
@@ -1359,7 +1359,8 @@
       realRow.style.display = "flex";
       var staleSoc = !isToday(socRead.ts) || charges.some(function(c){ return idTs(c.id) > socRead.ts; });
       var battReal = document.getElementById("battReal");
-      battReal.textContent = socRead.soc + "% · " + fmtOra(socRead.ts) + (staleSoc ? " (non aggiornata)" : "");
+      battReal.textContent = socRead.soc + "% · " + fmtOra(socRead.ts)
+        + (socRead.plugged ? (staleSoc ? " (all'attacco del caricatore)" : " (col caricatore collegato)") : staleSoc ? " (non aggiornata)" : "");
       battReal.style.color = staleSoc ? "var(--gold)" : "";
     } else realRow.style.display = "none";
     renderConsumo();
@@ -2317,7 +2318,7 @@
     }
     var s = d.soc, localSoc = loadJSON(SOC_KEY, null);
     if(s && typeof s.ts === "number" && typeof s.soc === "number" && (!localSoc || s.ts > localSoc.ts)){
-      saveJSON(SOC_KEY, { soc:s.soc, ts:s.ts });
+      saveJSON(SOC_KEY, { soc:s.soc, ts:s.ts, plugged: s.plugged === true });
     }
 
     saveJSON(TRIPS_KEY, trips); saveJSON(CHARGES_KEY, charges); saveJSON(ROUTES_KEY, routes);
@@ -2524,6 +2525,8 @@
   function stimaKmDaBatteria(){
     var socRead = loadJSON(SOC_KEY, null);
     if(!socRead || typeof socRead.soc !== "number" || !isToday(socRead.ts)) return null;
+    // letta col caricatore collegato: la % sta salendo, non è la carica con cui si parte
+    if(socRead.plugged) return null;
     // Se dopo quella lettura hai registrato una ricarica, la % letta non vale più
     var recharged = charges.some(function(c){ return idTs(c.id) > socRead.ts; });
     if(recharged) return null;
@@ -2568,7 +2571,8 @@
       ? "🔌 Caricatore collegato: salva i km e registra la ricarica a " + fmtKm(r.km)
       : "🔌 Caricatore collegato: registra la ricarica a " + fmtKm(r.km);
     b.addEventListener("click", function(){
-      // i km letti vanno salvati prima di lasciare il modulo, altrimenti si perdono
+      // Un tocco salva tutto: prima i km letti (sono stati fatti prima di attaccare il caricatore),
+      // poi la ricarica con il contachilometri letto. Si corregge dallo Storico ricariche se serve.
       var salvati = false;
       if(conKm()){
         var kmSalvati = parseFloat(document.getElementById("tripKm").value);
@@ -2576,14 +2580,11 @@
         salvati = kmSalvati;
       }
       b.remove();
+      charges.push({ id: Date.now()+"-"+Math.random().toString(36).slice(2,7), date: todayStr(), km: r.km });
+      saveJSON(CHARGES_KEY, charges);
       showView("dashboard");
-      var form = document.getElementById("chargeForm");
-      resetChargeForm();
-      document.getElementById("chargeDate").value = todayStr();
-      document.getElementById("chargeKm").value = r.km;
-      form.style.display = "block";
-      if(form.scrollIntoView) form.scrollIntoView({ behavior:"smooth", block:"center" });
-      showToast(salvati ? "✓ " + fmtKm(salvati) + " salvati · ora controlla e tocca «Salva ricarica»" : "Controlla e tocca «Salva ricarica»");
+      renderBattery();
+      showToast(salvati ? "🔋 " + fmtKm(salvati) + " e ricarica a " + fmtKm(r.km) + " registrati" : "🔋 Ricarica registrata a " + fmtKm(r.km));
     });
     box.appendChild(b);
   }
@@ -2605,7 +2606,7 @@
       var oldCharge = box.querySelector(".ble-charge"); if(oldCharge) oldCharge.remove();
       G3BLE.readScooter(mode, setNote, function(){ setNote("Premi ora UNA volta il pulsante di accensione del monopattino."); })
         .then(function(r){
-          saveJSON(SOC_KEY, { soc: r.soc, ts: Date.now() });
+          saveJSON(SOC_KEY, { soc: r.soc, ts: Date.now(), plugged: r.plugged === true });
           logRead(r);
           renderBleKey();
           onResult(r, setNote);
@@ -2830,7 +2831,7 @@
   document.getElementById("bleDiagCopy").addEventListener("click", function(){ copyText(diagText || "(vuoto)", "✓ Risultato copiato"); });
   // ---------- Versione ----------
   // Da tenere uguale al numero di CACHE_NAME in sw.js (rotaia-cache-vNN) a ogni modifica.
-  var APP_VERSION = 28, APP_DATE = "28 ottobre 2026";
+  var APP_VERSION = 29, APP_DATE = "28 ottobre 2026";
   function renderVersion(){
     var el = document.getElementById("appVersion");
     var base = "Versione " + APP_VERSION + " · " + APP_DATE;
