@@ -1353,11 +1353,11 @@
         syncBtn.style.display = "none";
       }
     }
-    var socRead = loadJSON(SOC_KEY, null);
+    var socRead = ultimaLetturaSoc();
     var realRow = document.getElementById("battRealRow");
-    if(socRead && typeof socRead.soc === "number"){
+    if(socRead){
       realRow.style.display = "flex";
-      var staleSoc = !isToday(socRead.ts) || charges.some(function(c){ return idTs(c.id) > socRead.ts; });
+      var staleSoc = !isToday(socRead.ts) || socRead.superata;
       var battReal = document.getElementById("battReal");
       battReal.textContent = socRead.soc + "% · " + fmtOra(socRead.ts)
         + (socRead.plugged ? (staleSoc ? " (all'attacco del caricatore)" : " (col caricatore collegato)") : staleSoc ? " (non aggiornata)" : "");
@@ -2318,7 +2318,7 @@
     }
     var s = d.soc, localSoc = loadJSON(SOC_KEY, null);
     if(s && typeof s.ts === "number" && typeof s.soc === "number" && (!localSoc || s.ts > localSoc.ts)){
-      saveJSON(SOC_KEY, { soc:s.soc, ts:s.ts, plugged: s.plugged === true });
+      saveJSON(SOC_KEY, { soc:s.soc, ts:s.ts, km: typeof s.km === "number" ? s.km : undefined, plugged: s.plugged === true });
     }
 
     saveJSON(TRIPS_KEY, trips); saveJSON(CHARGES_KEY, charges); saveJSON(ROUTES_KEY, routes);
@@ -2522,14 +2522,38 @@
   // Più precisa della media dei cicli di ricarica: quella assume di scaricare sempre a fondo
   // prima di ricaricare, questa no. Vale solo se la lettura è di oggi: più vecchia, non è
   // più "live" e si torna alla media dei cicli.
+  // Ultima % letta con i suoi km e lo stato del caricatore (anche per letture salvate da versioni
+  // che non memorizzavano questi dati: si recuperano dallo storico letture con lo stesso istante).
+  function ultimaLetturaSoc(){
+    var sr = loadJSON(SOC_KEY, null);
+    if(!sr || typeof sr.soc !== "number") return null;
+    var out = { soc: sr.soc, ts: sr.ts, km: typeof sr.km === "number" ? sr.km : null, plugged: sr.plugged === true };
+    var best = null;
+    loadJSON(READS_KEY, []).forEach(function(r){
+      if(typeof r.ts === "number" && Math.abs(r.ts - sr.ts) < 60000 && (!best || Math.abs(r.ts - sr.ts) < Math.abs(best.ts - sr.ts))) best = r;
+    });
+    if(best){
+      if(out.km === null && typeof best.km === "number") out.km = best.km;
+      if(best.plugged === true) out.plugged = true;
+    }
+    // Superata da una ricarica: registrata dopo la lettura, oppure con il contachilometri uguale o più
+    // alto (dopo la ricarica il monopattino non si è mosso, quindi ora è carico).
+    var lc = lastCharge();
+    out.superata = charges.some(function(c){ return idTs(c.id) > sr.ts; })
+      || (lc && out.km !== null && lc.km >= out.km - 0.05 && lc.date >= todayFromTs(sr.ts));
+    return out;
+  }
+  function todayFromTs(ts){
+    var d = new Date(ts);
+    return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0");
+  }
   function stimaKmDaBatteria(){
-    var socRead = loadJSON(SOC_KEY, null);
-    if(!socRead || typeof socRead.soc !== "number" || !isToday(socRead.ts)) return null;
+    var socRead = ultimaLetturaSoc();
+    if(!socRead || !isToday(socRead.ts)) return null;
     // letta col caricatore collegato: la % sta salendo, non è la carica con cui si parte
     if(socRead.plugged) return null;
-    // Se dopo quella lettura hai registrato una ricarica, la % letta non vale più
-    var recharged = charges.some(function(c){ return idTs(c.id) > socRead.ts; });
-    if(recharged) return null;
+    // Dopo quella lettura c'è stata una ricarica: la % letta non vale più
+    if(socRead.superata) return null;
     var m = consumoMisurato();
     if(!m.enough || !m.whKm) return null;
     return { km: (params.capacitaBatteria * 1000 * (socRead.soc/100)) / m.whKm, soc: socRead.soc };
@@ -2606,7 +2630,7 @@
       var oldCharge = box.querySelector(".ble-charge"); if(oldCharge) oldCharge.remove();
       G3BLE.readScooter(mode, setNote, function(){ setNote("Premi ora UNA volta il pulsante di accensione del monopattino."); })
         .then(function(r){
-          saveJSON(SOC_KEY, { soc: r.soc, ts: Date.now(), plugged: r.plugged === true });
+          saveJSON(SOC_KEY, { soc: r.soc, ts: Date.now(), km: r.km, plugged: r.plugged === true });
           logRead(r);
           renderBleKey();
           onResult(r, setNote);
@@ -2831,7 +2855,7 @@
   document.getElementById("bleDiagCopy").addEventListener("click", function(){ copyText(diagText || "(vuoto)", "✓ Risultato copiato"); });
   // ---------- Versione ----------
   // Da tenere uguale al numero di CACHE_NAME in sw.js (rotaia-cache-vNN) a ogni modifica.
-  var APP_VERSION = 29, APP_DATE = "28 ottobre 2026";
+  var APP_VERSION = 30, APP_DATE = "28 ottobre 2026";
   function renderVersion(){
     var el = document.getElementById("appVersion");
     var base = "Versione " + APP_VERSION + " · " + APP_DATE;
