@@ -89,6 +89,19 @@
   }
   .reminder-text{ font-size:13px; color:var(--ink); }
   .reminder-card .ghost-btn{ width:auto; margin:0; padding:8px 14px; white-space:nowrap; flex-shrink:0; }
+  .cmp-list{ margin-top:12px; }
+  .cmp-row{ padding:10px 0; border-bottom:1px solid var(--ink-10); }
+  .cmp-row:last-child{ border-bottom:none; }
+  .cmp-top{ display:flex; justify-content:space-between; align-items:baseline; gap:10px; }
+  .cmp-name{ font-size:14px; font-weight:600; }
+  .cmp-net{ font-size:14px; font-weight:600; }
+  .cmp-net.pos{ color:var(--teal-ink); }
+  .cmp-net.neg{ color:var(--rust-ink); }
+  .cmp-sub{ font-size:12px; color:var(--ink-60); margin-top:3px; }
+  .cmp-delta.up{ color:var(--teal-ink); }
+  .cmp-delta.down{ color:var(--rust-ink); }
+  .reminder-card.stack{ flex-wrap:wrap; justify-content:flex-start; }
+  .reminder-card.stack .reminder-text{ flex-basis:100%; }
 
   .hero{
     background:var(--surface); border:1px solid var(--ink-10); border-radius:var(--radius);
@@ -327,6 +340,11 @@
       <div class="reminder-text">📍 Non hai ancora registrato nulla oggi.</div>
       <button class="ghost-btn" id="reminderBtn" type="button">Aggiungi ora</button>
     </div>
+    <div class="reminder-card stack" id="readReminder" style="display:none;">
+      <div class="reminder-text" id="readReminderText"></div>
+      <button class="ghost-btn" id="readReminderBtn" type="button">🛴 Leggi ora</button>
+      <button class="ghost-btn" id="readReminderSkip" type="button">Non l'ho usato</button>
+    </div>
 
     <div class="hero">
       <div class="label">Risparmio netto finora</div>
@@ -423,7 +441,20 @@
     <div class="card">
       <h2>Risparmio mensile</h2>
       <div class="chart-wrap" id="chartWrap"></div>
+      <button type="button" class="ghost-btn" id="shareChartBtn" style="display:none;">📤 Condividi il grafico</button>
     </div>
+
+    <details class="card" id="cmpCard">
+      <summary>Confronto tra mesi e stagioni</summary>
+      <div class="details-body">
+        <div class="seg" id="cmpSeg">
+          <button type="button" data-cmp="mese" class="on">Mesi</button>
+          <button type="button" data-cmp="stagione">Stagioni</button>
+        </div>
+        <div class="cmp-list" id="cmpList"></div>
+        <div class="param-note" id="cmpNote"></div>
+      </div>
+    </details>
 
     <details class="card">
       <summary>Andamento per giorno della settimana</summary>
@@ -608,6 +639,17 @@
         <button type="button" class="ghost-btn" id="bleKeyForget">Dimentica chiave e monopattino</button>
         <button type="button" class="ghost-btn" id="bleLogCopy">Copia registro tecnico</button>
       </div>
+      <label for="readRemOra" style="display:block; font-size:13px; color:var(--ink-60); margin:14px 0 6px;">Promemoria lettura in Dashboard</label>
+      <select id="readRemOra">
+        <option value="0">Spento</option>
+        <option value="17">Dalle 17:00</option>
+        <option value="18">Dalle 18:00</option>
+        <option value="19">Dalle 19:00</option>
+        <option value="20">Dalle 20:00</option>
+        <option value="21">Dalle 21:00</option>
+        <option value="22">Dalle 22:00</option>
+      </select>
+      <div class="param-note" style="margin-top:6px;">La sera, se dopo mezzogiorno non hai ancora letto il monopattino, la Dashboard te lo ricorda (una lettura del mattino, prima di uscire, non conta). Se te ne dimentichi, la mattina dopo (fino alle 12) ti propone di leggerlo prima di uscire, così i km vanno su ieri. Se non usi il monopattino da più di 14 giorni il promemoria si mette in pausa da solo e riparte alla prima lettura.</div>
       <div class="be-detail" style="margin-top:14px;"><span>Lettura diagnostica (sola lettura)</span></div>
       <div class="param-note" style="margin-top:6px;">Legge dal monopattino alcuni blocchi di dati grezzi, senza scrivere né cambiare nulla, per scoprire quali informazioni (temperatura, cicli, celle…) il tuo G3 fornisce. Dura circa un minuto. Poi copia il risultato e mandalo in chat.</div>
       <div class="backup-btns" style="margin-top:8px;">
@@ -645,6 +687,10 @@
           <div class="guide-d">Con il monopattino acceso e SHU chiusa, «Leggi km dal monopattino» legge il contachilometri e compila i km fatti dall'ultima lettura. La prima volta salva solo il punto di partenza, perché non c'è ancora un riferimento precedente con cui calcolare la differenza: se hai già percorso km oggi prima di questa prima lettura, il campo km resta vuoto e vanno inseriti a mano (il contachilometri letto li include già). Se dopo l'ultima lettura hai registrato spostamenti in monopattino a mano, l'app li toglie da sola dal valore proposto, così non vengono contati due volte (vale dalla seconda lettura confermata in poi). Il monopattino non registra in che giorno hai guidato: se l'ultima lettura è di un giorno precedente, l'app propone il giorno più probabile (la mattina «Ieri», dal pomeriggio «Oggi») e mostra i pulsanti Oggi, Ieri, … per cambiarlo prima di salvare. Se leggi ogni sera, la data è sempre quella giusta. In «Registra ricarica» lo stesso pulsante compila il contachilometri e, se hai fatto km dall'ultima lettura, propone «Registra anche … in monopattino» (con il giorno): salvando la ricarica si salvano anche quei km. Se invece leggi da «Aggiungi» con il caricatore collegato, compare il pulsante «salva i km e registra la ricarica»: un tocco registra entrambi (la ricarica si corregge dallo Storico ricariche). Una lettura fatta col caricatore collegato non vale come carica attuale, perché la % sta salendo: la barra riparte dal 100% appena la ricarica è registrata. La prima lettura richiede l'abbinamento: premi una volta il pulsante di accensione quando l'app lo chiede.</div>
         </div>
         <div class="guide-item">
+          <div class="guide-t">Promemoria lettura 🔔</div>
+          <div class="guide-d">Se dopo mezzogiorno non hai ancora letto il monopattino, dalle 19 (l'ora si cambia in Parametri, scheda Bluetooth, o si spegne) la Dashboard mostra un promemoria: «Leggi ora» apre Aggiungi e avvia subito la lettura. Se te ne dimentichi, la mattina dopo (fino alle 12) ti propone di leggerlo prima di uscire, e i km vanno su ieri. «Non l'ho usato» lo nasconde fino alla sera dopo. Se il monopattino resta fermo più di 14 giorni (nessuna lettura né spostamento) il promemoria va in pausa da solo. Non è una notifica del telefono: un'app web senza server non può mandarne a un'ora precisa, quindi lo vedi aprendo l'app.</div>
+        </div>
+        <div class="guide-item">
           <div class="guide-t">Abbinamento e SHU 🔑</div>
           <div class="guide-d">Il monopattino ricorda una sola app alla volta. Dopo che hai usato SHU, alla lettura successiva l'app ti chiederà «Abbina ora»: premi una volta il pulsante di accensione e la nuova chiave si salva da sola. A sua volta SHU potrebbe chiederti di riabbinarla. Velocità, regione e gli altri parametri non cambiano mai. Conserva una copia della chiave (Parametri → Monopattino via Bluetooth): se cancelli i dati dell'app o cambi telefono, incollandola eviti un nuovo abbinamento. La pagina diagnostica della batteria ha una sua copia della chiave: prima di usarla, incollale quella dell'app.</div>
         </div>
@@ -655,6 +701,14 @@
         <div class="guide-item">
           <div class="guide-t">Due modi di stimare l'autonomia</div>
           <div class="guide-d">La media dei cicli di ricarica assume di scaricare sempre a fondo prima di ricaricare: se carichi più spesso (buona abitudine per la salute della batteria), quella media risulta più bassa del reale. Il consumo misurato dal Bluetooth non ha questo limite, perché guarda l'energia e non la distanza tra due ricariche. Per questo, se oggi hai fatto una lettura e hai già un consumo misurato, "Km stimati alla prossima ricarica" usa la % di batteria letta oggi insieme al consumo misurato, invece della media dei cicli; altrimenti resta la media dei cicli (o il valore dichiarato, se non hai ancora registrato ricariche). Appena hai almeno 5 km di consumo misurato, l'app usa solo quello (la riga «Autonomia reale» lo indica) e nasconde la proposta basata sui cicli, per non mostrarti due numeri in disaccordo; la proposta dai cicli torna solo finché il consumo misurato non è ancora disponibile.</div>
+        </div>
+        <div class="guide-item">
+          <div class="guide-t">Confronto tra mesi e stagioni 📊</div>
+          <div class="guide-d">In Dashboard, «Confronto tra mesi e stagioni» mette a confronto ogni mese (o stagione: inverno = dicembre-febbraio) con km per mezzo, % d'uso, giorni in monopattino e risparmio netto. Il risparmio al giorno divide per i giorni di calendario (dal primo spostamento a oggi), così il mese in corso e l'inverno si confrontano alla pari con l'estate; la freccia indica la variazione sul periodo precedente e, dal secondo anno, compare anche lo stesso periodo dell'anno prima. Il segno † indica un periodo con km recuperati da giorni precedenti all'app: contano nel netto, non nel risparmio al giorno.</div>
+        </div>
+        <div class="guide-item">
+          <div class="guide-t">Condividere il grafico 📤</div>
+          <div class="guide-d">Sotto «Risparmio mensile», «Condividi il grafico» crea un'immagine quadrata con i mesi dal primo con dati (al massimo 6), il netto totale, i km in monopattino e la CO2 risparmiata, nei colori del tema attivo, e la passa al menu di condivisione del telefono. Se il browser non può condividere file, l'immagine viene scaricata.</div>
         </div>
         <div class="guide-item">
           <div class="guide-t">Serie monopattino (streak) 🔥</div>
@@ -1114,7 +1168,10 @@
     renderBackupReminder();
     var reminderCard = document.getElementById("reminderCard");
     var loggedToday = trips.some(function(t){ return t.date === todayStr(); });
-    reminderCard.style.display = loggedToday ? "none" : "flex";
+    // Il promemoria della lettura dal monopattino, quando c'è, prende il posto di quello generico
+    var promLett = promemoriaLettura();
+    renderReadReminder(promLett);
+    reminderCard.style.display = (loggedToday || promLett) ? "none" : "flex";
 
     var goalCard = document.getElementById("goalCard");
     if(params.obiettivoMensile > 0){
@@ -1130,6 +1187,7 @@
     renderChart();
     renderCumulativeChart();
     renderWeekdayChart();
+    renderConfronto();
     renderBattery();
   }
 
@@ -1137,12 +1195,8 @@
     return (Math.round(n*10)/10).toString().replace(".", ",") + " km";
   }
 
-  function renderChart(){
-    var wrap = document.getElementById("chartWrap");
-    if(trips.length === 0){
-      wrap.innerHTML = '<div class="chart-empty">Aggiungi qualche spostamento per vedere l\'andamento mensile.</div>';
-      return;
-    }
+  // Risparmio netto degli ultimi 6 mesi (spese tolte), dal più vecchio al mese in corso
+  function monthlyBuckets(){
     var now = new Date();
     var buckets = [];
     for(var i=5;i>=0;i--){
@@ -1159,6 +1213,18 @@
       var b = buckets.find(function(y){ return y.key === x.date.slice(0,7); });
       if(b) b.value -= x.amount;
     });
+    return buckets;
+  }
+  function renderChart(){
+    var wrap = document.getElementById("chartWrap");
+    var shareBtn = document.getElementById("shareChartBtn");
+    if(trips.length === 0){
+      wrap.innerHTML = '<div class="chart-empty">Aggiungi qualche spostamento per vedere l\'andamento mensile.</div>';
+      shareBtn.style.display = "none";
+      return;
+    }
+    shareBtn.style.display = "block";
+    var buckets = monthlyBuckets();
     var max = Math.max.apply(null, buckets.map(function(b){return Math.abs(b.value);}).concat([1]));
     var w = 300, h = 158, padB = 20, padT = 16, barW = 28, gap = (w - barW*6)/7;
     var barMaxH = h - padB - padT;
@@ -1177,6 +1243,98 @@
     svg += '</svg>';
     wrap.innerHTML = svg;
   }
+
+  // ---------- Condivisione del grafico mensile come immagine ----------
+  // Disegnato su canvas (non dall'SVG) per usare i font dell'app e i colori del tema attivo.
+  function drawMonthlyImage(){
+    var W = 1080, H = 1080;
+    var cv = document.createElement("canvas");
+    cv.width = W; cv.height = H;
+    var ctx = cv.getContext("2d");
+    var cs = getComputedStyle(document.documentElement);
+    var col = function(n, fb){ var v = cs.getPropertyValue(n); return (v && v.trim()) || fb; };
+    var bg = col("--bg", "#0A0B0A"), surf = col("--surface", "#17191A"), ink = col("--ink", "#F2F4EF"),
+      ink60 = col("--ink-60", "rgba(242,244,239,.62)"), ink10 = col("--ink-10", "rgba(242,244,239,.13)"),
+      teal = col("--teal", "#39FF14"), rust = col("--rust", "#FF2FD6"), gold = col("--gold", "#FFE94A");
+    var SANS = "'IBM Plex Sans', system-ui, sans-serif", MONO = "'IBM Plex Mono', ui-monospace, monospace",
+      DISP = "'Big Shoulders Display', 'IBM Plex Sans', sans-serif";
+    function rrect(x, y, w, h, r){
+      r = Math.min(r, w/2, h/2);
+      ctx.beginPath();
+      ctx.moveTo(x+r, y); ctx.lineTo(x+w-r, y); ctx.quadraticCurveTo(x+w, y, x+w, y+r);
+      ctx.lineTo(x+w, y+h-r); ctx.quadraticCurveTo(x+w, y+h, x+w-r, y+h);
+      ctx.lineTo(x+r, y+h); ctx.quadraticCurveTo(x, y+h, x, y+h-r);
+      ctx.lineTo(x, y+r); ctx.quadraticCurveTo(x, y, x+r, y); ctx.closePath();
+    }
+    ctx.fillStyle = bg; ctx.fillRect(0, 0, W, H);
+    ctx.fillStyle = surf; rrect(48, 48, W-96, H-96, 28); ctx.fill();
+    ctx.strokeStyle = ink10; ctx.lineWidth = 2; ctx.stroke();
+
+    ctx.textBaseline = "alphabetic"; ctx.textAlign = "left";
+    ctx.fillStyle = ink; ctx.font = "800 84px " + DISP;
+    ctx.fillText("RISPARMIO MENSILE", 100, 180);
+    // dal primo mese con dati (al massimo gli ultimi 6): i mesi vuoti prima dell'inizio non dicono nulla
+    var primo = null;
+    trips.concat(spese).forEach(function(t){ var k = t.date.slice(0,7); if(!primo || k < primo) primo = k; });
+    var buckets = monthlyBuckets().filter(function(b){ return !primo || b.key >= primo; });
+    ctx.fillStyle = ink60; ctx.font = "500 30px " + SANS;
+    ctx.fillText("Monopattino vs auto · " + (buckets.length === 1 ? "questo mese" : "ultimi " + buckets.length + " mesi") + " · netto", 100, 232);
+
+    var max = Math.max.apply(null, buckets.map(function(b){ return Math.abs(b.value); }).concat([1]));
+    var cx = 100, cw = W - 200, top = 330, base = 800, barW = 104, gap = (cw - barW*6) / 5;
+    var x0 = cx + (cw - (buckets.length * barW + (buckets.length - 1) * gap)) / 2;
+    ctx.strokeStyle = ink10; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.moveTo(cx, base + 1); ctx.lineTo(cx + cw, base + 1); ctx.stroke();
+    buckets.forEach(function(b, i){
+      var x = x0 + i*(barW+gap);
+      var h = Math.max(4, Math.abs(b.value) / max * (base - top));
+      var c = b.value >= 0 ? teal : rust;
+      ctx.fillStyle = c; rrect(x, base - h, barW, h, 10); ctx.fill();
+      ctx.textAlign = "center";
+      ctx.font = "600 27px " + MONO;
+      ctx.fillText(eurLabel(b.value).replace("€", " €"), x + barW/2, base - h - 16);
+      ctx.fillStyle = ink60; ctx.font = "500 32px " + SANS;
+      ctx.fillText(b.label, x + barW/2, base + 52);
+    });
+
+    var spTot = speseTot();
+    var netto = trips.reduce(function(s,t){ return s + tripSaving(t); }, 0) - spTot;
+    var kmT = trips.filter(function(t){ return t.mezzo === "monopattino"; }).reduce(function(s,t){ return s + t.km; }, 0);
+    var co2 = trips.reduce(function(s,t){ return s + tripCO2(t); }, 0);
+    ctx.textAlign = "left";
+    ctx.fillStyle = ink; ctx.font = "600 34px " + SANS;
+    ctx.fillText("Netto totale " + euro(netto) + " · " + fmtKm(kmT) + " in monopattino", 100, 940);
+    ctx.fillStyle = gold; ctx.font = "500 28px " + SANS;
+    ctx.fillText("CO2 risparmiata " + fmtCO2(co2) + " · " + fmtDataIt(new Date()), 100, 988);
+    return cv;
+  }
+  function shareMonthlyChart(){
+    var btn = document.getElementById("shareChartBtn");
+    btn.disabled = true;
+    var fontsReady = (document.fonts && document.fonts.ready) ? document.fonts.ready : Promise.resolve();
+    fontsReady.then(function(){
+      var cv = drawMonthlyImage();
+      return new Promise(function(res){ cv.toBlob(res, "image/png"); });
+    }).then(function(blob){
+      if(!blob) throw new Error("immagine non creata");
+      var name = "risparmio-mensile-" + todayStr() + ".png";
+      var file = null;
+      try{ file = new File([blob], name, { type: "image/png" }); }catch(e){}
+      var canShare = false;
+      try{ canShare = !!(file && navigator.share && navigator.canShare && navigator.canShare({ files: [file] })); }catch(e){}
+      if(canShare){
+        return navigator.share({ files: [file], title: "Risparmio mensile", text: "Il mio risparmio col monopattino" })
+          .catch(function(){ /* condivisione annullata */ });
+      }
+      // senza condivisione di file: si scarica l'immagine
+      var url = URL.createObjectURL(blob), a = document.createElement("a");
+      a.href = url; a.download = name; document.body.appendChild(a); a.click(); document.body.removeChild(a);
+      setTimeout(function(){ URL.revokeObjectURL(url); }, 2000);
+      showToast("✓ Immagine del grafico scaricata");
+    }).catch(function(){ showToast("Non sono riuscito a creare l'immagine", 3000, true); })
+      .then(function(){ btn.disabled = false; });
+  }
+  document.getElementById("shareChartBtn").addEventListener("click", shareMonthlyChart);
 
   // Etichetta con l'importo esatto (non arrotondato), come richiesto
   function eurLabel(n){
@@ -1229,6 +1387,106 @@
     svg += '</svg>';
     wrap.innerHTML = svg;
   }
+
+  // ---------- Confronto tra mesi e stagioni ----------
+  // Ogni periodo: km per mezzo, % d'uso, netto (spese tolte) e risparmio medio per giorno di
+  // calendario, che permette di confrontare anche il periodo in corso (ancora a metà) e l'inverno con l'estate.
+  // Il €/giorno esclude i recuperi storici, come la proiezione annua; il netto li include, come i totali.
+  var MESI_LUNGHI = ["Gennaio","Febbraio","Marzo","Aprile","Maggio","Giugno","Luglio","Agosto","Settembre","Ottobre","Novembre","Dicembre"];
+  var STAGIONI = ["Inverno","Primavera","Estate","Autunno"];
+  var cmpMode = "mese";
+  function periodoDi(dateStr, mode){
+    var y = +dateStr.slice(0,4), m = +dateStr.slice(5,7);
+    if(mode === "mese") return { key: dateStr.slice(0,7), y: y, m: m };
+    // inverno = dicembre + gennaio + febbraio, assegnato all'anno di gennaio
+    var idx = m === 12 || m <= 2 ? 0 : m <= 5 ? 1 : m <= 8 ? 2 : 3;
+    var sy = m === 12 ? y + 1 : y;
+    return { key: sy + "-" + idx, y: sy, s: idx };
+  }
+  function periodoInfo(p, mode){
+    var pad = function(n){ return String(n).padStart(2,"0"); };
+    if(mode === "mese"){
+      var last = new Date(p.y, p.m, 0).getDate();
+      return { nome: MESI_LUNGHI[p.m-1] + " " + p.y, da: p.y + "-" + pad(p.m) + "-01", a: p.y + "-" + pad(p.m) + "-" + pad(last) };
+    }
+    var da, a;
+    if(p.s === 0){ da = (p.y-1) + "-12-01"; a = p.y + "-02-" + pad(new Date(p.y, 2, 0).getDate()); }
+    else { var m0 = [0,3,6,9][p.s]; da = p.y + "-" + pad(m0) + "-01"; a = p.y + "-" + pad(m0+2) + "-" + pad(new Date(p.y, m0+2, 0).getDate()); }
+    return { nome: STAGIONI[p.s] + " " + (p.s === 0 ? (p.y-1) + "-" + String(p.y).slice(2) : p.y), da: da, a: a };
+  }
+  function confrontoPeriodi(mode, oggi){
+    oggi = oggi || todayStr();
+    var inizio = null;
+    trips.forEach(function(t){ if(!isRec(t) && (!inizio || t.date < inizio)) inizio = t.date; });
+    var map = {};
+    function get(dateStr){
+      var p = periodoDi(dateStr, mode);
+      if(!map[p.key]){
+        var info = periodoInfo(p, mode);
+        map[p.key] = { key: p.key, nome: info.nome, da: info.da, a: info.a, y: p.y,
+          kmT: 0, kmR: 0, netto: 0, nettoNorm: 0, giorniT: {}, rec: false };
+      }
+      return map[p.key];
+    }
+    trips.forEach(function(t){
+      var b = get(t.date), sv = tripSaving(t);
+      if(t.mezzo === "monopattino"){ b.kmT += t.km; if(!isRec(t)) b.giorniT[t.date] = true; }
+      else b.kmR += t.km;
+      b.netto += sv;
+      if(isRec(t)) b.rec = true; else b.nettoNorm += sv;
+    });
+    spese.forEach(function(x){ var b = get(x.date); b.netto -= x.amount; b.nettoNorm -= x.amount; });
+    var out = Object.keys(map).sort().map(function(k){
+      var b = map[k];
+      // giorni di calendario del periodo coperti dai dati: dal primo spostamento normale a oggi
+      var da = inizio && inizio > b.da ? inizio : b.da, a = oggi < b.a ? oggi : b.a;
+      var giorni = a >= da ? daysBetween(da, a) + 1 : 0;
+      var tot = b.kmT + b.kmR;
+      return { key: b.key, nome: b.nome, y: b.y, kmT: b.kmT, kmR: b.kmR, uso: tot > 0 ? b.kmT / tot * 100 : null,
+        netto: b.netto, giorni: giorni, alGiorno: giorni > 0 ? b.nettoNorm / giorni : null,
+        giorniT: Object.keys(b.giorniT).length, rec: b.rec, inCorso: oggi >= b.da && oggi <= b.a };
+    });
+    // variazione del €/giorno rispetto al periodo precedente e allo stesso periodo dell'anno prima
+    out.forEach(function(r, i){
+      var prev = i > 0 ? out[i-1] : null;
+      r.delta = (prev && prev.alGiorno && r.alGiorno !== null && Math.abs(prev.alGiorno) > 0.005)
+        ? (r.alGiorno - prev.alGiorno) / Math.abs(prev.alGiorno) * 100 : null;
+      var annoPrima = (r.y - 1) + r.key.slice(4);
+      var ap = out.filter(function(x){ return x.key === annoPrima; })[0];
+      r.annoPrima = ap && ap.alGiorno !== null ? ap.alGiorno : null;
+    });
+    return out.reverse();
+  }
+  function renderConfronto(){
+    var list = document.getElementById("cmpList"), note = document.getElementById("cmpNote");
+    var rows = confrontoPeriodi(cmpMode);
+    Array.prototype.forEach.call(document.querySelectorAll("#cmpSeg button"), function(b){
+      b.classList.toggle("on", b.getAttribute("data-cmp") === cmpMode);
+    });
+    if(!rows.length){
+      list.innerHTML = '<div class="chart-empty">Aggiungi qualche spostamento per confrontare i periodi.</div>';
+      note.textContent = "";
+      return;
+    }
+    var eur2 = function(n){ return (n < 0 ? "−" : "") + Math.abs(n).toFixed(2).replace(".", ",") + " €"; };
+    list.innerHTML = rows.map(function(r){
+      var sub = "🛴 " + fmtKm(r.kmT) + " · 🚗 " + fmtKm(r.kmR)
+        + (r.uso !== null ? " · uso " + Math.round(r.uso) + "%" : "")
+        + " · " + r.giorniT + (r.giorniT === 1 ? " giorno" : " giorni") + " in monopattino";
+      var sub2 = r.alGiorno !== null ? eur2(r.alGiorno) + " al giorno" + (r.inCorso ? " (finora)" : "") : "";
+      if(r.delta !== null) sub2 += ' · <span class="cmp-delta ' + (r.delta >= 0 ? "up" : "down") + '">'
+        + (r.delta >= 0 ? "▲ +" : "▼ −") + Math.abs(Math.round(r.delta)) + "%</span> sul precedente";
+      if(r.annoPrima !== null) sub2 += " · anno prima " + eur2(r.annoPrima) + "/giorno";
+      return '<div class="cmp-row"><div class="cmp-top"><span class="cmp-name">' + escHtml(r.nome) + (r.inCorso ? " · in corso" : "") + '</span>'
+        + '<span class="cmp-net mono ' + (r.netto >= 0 ? "pos" : "neg") + '">' + eurLabel(r.netto) + (r.rec ? " †" : "") + '</span></div>'
+        + '<div class="cmp-sub">' + sub + '</div>' + (sub2 ? '<div class="cmp-sub">' + sub2 + '</div>' : "") + '</div>';
+    }).join("");
+    note.textContent = "Il netto toglie le spese di manutenzione del periodo. Il risparmio al giorno è calcolato sui giorni di calendario (dal primo spostamento a oggi), così il periodo in corso e le stagioni si confrontano alla pari."
+      + (rows.some(function(r){ return r.rec; }) ? " † Comprende km recuperati da giorni precedenti all'app: il risparmio al giorno li esclude." : "");
+  }
+  Array.prototype.forEach.call(document.querySelectorAll("#cmpSeg button"), function(b){
+    b.addEventListener("click", function(){ cmpMode = b.getAttribute("data-cmp"); renderConfronto(); });
+  });
 
   // ---------- Andamento per giorno della settimana ----------
   function renderWeekdayChart(){
@@ -2853,9 +3111,89 @@
       .then(function(){ btn.disabled = false; });
   });
   document.getElementById("bleDiagCopy").addEventListener("click", function(){ copyText(diagText || "(vuoto)", "✓ Risultato copiato"); });
+  // ---------- Promemoria lettura dal monopattino ----------
+  // Una PWA senza server non può mandare notifiche a un'ora precisa: il promemoria vive in Dashboard
+  // e si ricalcola a ogni apertura e ogni volta che l'app torna in primo piano.
+  var READREM_KEY = "rotaia_readrem_v1";            // { ora: 19 }, 0 = spento
+  var READREM_SKIP_KEY = "rotaia_readrem_skip_v1";  // ["AAAA-MM-GG-sera", "AAAA-MM-GG-mattina", …]
+  var READREM_PAUSA_GIORNI = 14;
+  function oraPromemoria(){
+    var o = loadJSON(READREM_KEY, null);
+    return (o && typeof o.ora === "number" && o.ora >= 0 && o.ora <= 23) ? o.ora : 19;
+  }
+  function promemoriaLettura(now){
+    now = now || new Date();
+    var ora = oraPromemoria();
+    if(!ora || typeof G3BLE === "undefined" || !G3BLE.supported()) return null;
+    var odo = loadJSON(ODO_KEY, null);
+    if(!odo || typeof odo.km !== "number") return null;   // il Bluetooth non è ancora in uso
+    var oggi = todayFromTs(now.getTime()), h = now.getHours();
+    var lastTs = typeof odo.ts === "number" ? odo.ts : 0;
+    loadJSON(READS_KEY, []).forEach(function(r){ if(typeof r.ts === "number" && r.ts > lastTs) lastTs = r.ts; });
+    // Vale come lettura di fine giornata una lettura dopo mezzogiorno (stessa soglia di giornoProbabile):
+    // quella del mattino, prima di uscire, non conta i km fatti dopo.
+    function mezzogiorno(ds){ var p = ds.split("-"); return new Date(+p[0], +p[1]-1, +p[2], 12).getTime(); }
+    // Monopattino fermo da più di 14 giorni (né letture né spostamenti): promemoria in pausa
+    var limite = addDaysStr(oggi, -READREM_PAUSA_GIORNI);
+    var usato = lastTs >= now.getTime() - READREM_PAUSA_GIORNI * 86400000
+      || trips.some(function(t){ return t.mezzo === "monopattino" && t.date >= limite && t.date <= oggi; });
+    if(!usato) return null;
+    var skip = loadJSON(READREM_SKIP_KEY, []);
+    if(h >= ora){
+      if(lastTs >= mezzogiorno(oggi) || skip.indexOf(oggi + "-sera") >= 0) return null;
+      return { tipo: "sera", giorno: oggi, testo: "🛴 Fine giornata: oggi non hai ancora letto i km dal monopattino." };
+    }
+    if(h < 12){
+      var ieri = addDaysStr(oggi, -1);
+      if(skip.indexOf(ieri + "-sera") >= 0 || skip.indexOf(oggi + "-mattina") >= 0) return null;
+      if(lastTs >= mezzogiorno(ieri)) return null;   // letto ieri dopo mezzogiorno (o già stamattina)
+      return { tipo: "mattina", giorno: oggi, testo: "🛴 Ieri sera non hai letto il monopattino: leggilo prima di uscire, i km andranno su ieri." };
+    }
+    return null;
+  }
+  function renderReadReminder(pr){
+    var card = document.getElementById("readReminder");
+    if(!pr){ card.style.display = "none"; card.removeAttribute("data-tipo"); return; }
+    card.style.display = "flex";
+    card.setAttribute("data-tipo", pr.tipo);
+    document.getElementById("readReminderText").textContent = pr.testo;
+    document.getElementById("readReminderSkip").textContent = pr.tipo === "mattina" ? "Ieri non l'ho usato" : "Oggi non l'ho usato";
+  }
+  function rimandaPromemoria(pr){
+    var skip = loadJSON(READREM_SKIP_KEY, []).filter(function(x){ return typeof x === "string"; });
+    skip.push(pr.giorno + "-" + pr.tipo);
+    saveJSON(READREM_SKIP_KEY, skip.slice(-10));
+  }
+  document.getElementById("readReminderBtn").addEventListener("click", function(){
+    resetAddForm();
+    showView("add");
+    // stesso tocco dell'utente: la lettura Bluetooth può partire subito
+    var b = document.querySelector("#tripBle .ble-read");
+    if(b && !b.disabled) b.click();
+  });
+  document.getElementById("readReminderSkip").addEventListener("click", function(){
+    var pr = promemoriaLettura();
+    if(pr) rimandaPromemoria(pr);
+    renderDashboard();
+    showToast("Va bene: niente promemoria fino alla prossima sera");
+  });
+  (function(){
+    var sel = document.getElementById("readRemOra");
+    sel.value = String(oraPromemoria());
+    sel.addEventListener("change", function(){
+      saveJSON(READREM_KEY, { ora: parseInt(sel.value, 10) || 0 });
+      showToast(sel.value === "0" ? "Promemoria lettura spento" : "✓ Promemoria dalle " + sel.value + ":00");
+    });
+  })();
+  // L'app può restare aperta in sottofondo per ore: tornando in primo piano la Dashboard si aggiorna
+  // (promemoria, data di oggi, batteria).
+  document.addEventListener("visibilitychange", function(){
+    if(document.visibilityState === "visible" && document.getElementById("view-dashboard").classList.contains("active")) renderDashboard();
+  });
+
   // ---------- Versione ----------
   // Da tenere uguale al numero di CACHE_NAME in sw.js (rotaia-cache-vNN) a ogni modifica.
-  var APP_VERSION = 30, APP_DATE = "28 ottobre 2026";
+  var APP_VERSION = 31, APP_DATE = "28 ottobre 2026";
   function renderVersion(){
     var el = document.getElementById("appVersion");
     var base = "Versione " + APP_VERSION + " · " + APP_DATE;
