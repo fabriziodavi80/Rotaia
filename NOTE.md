@@ -1,6 +1,6 @@
 # Max G3 Saving — note di passaggio per una nuova chat
 
-Aggiornato: 28 ottobre 2026, versione 30 (`rotaia-cache-v30`). Leggere tutto prima di toccare il codice.
+Aggiornato: 28 ottobre 2026 sera, versione 30 (`rotaia-cache-v30`). Leggere tutto prima di toccare il codice.
 
 App personale (PWA, pagina unica) che confronta gli spostamenti in monopattino (Ninebot Max G3) con quelli in auto, calcola il risparmio e legge i dati del monopattino via Bluetooth. Un solo utente, nessun server, nessun account. Interfaccia e chat in italiano.
 
@@ -39,7 +39,7 @@ App personale (PWA, pagina unica) che confronta gli spostamenti in monopattino (
 - Prezzi `pb`/`pe` bloccati su ogni spostamento; consumo, autonomia e costi fissi al km si applicano anche al passato.
 
 ### Parametri dell'utente (28/10)
-Benzina 2,13 €/l, auto 10,8 l/100 km, elettricità 0,30 €/kWh, batteria 0,597 kWh, autonomia 34 km (consumo misurato ≈ 18 Wh/km su ≈ 49 km → ≈ 33 km), costo d'acquisto 773,18 €, costi fissi 91 €/anno, km annui 1.500, distanza massima 18 km, obiettivo mensile 20 €.
+Benzina 1,989 €/l (dal 26/10; prima 2,13), auto 10,8 l/100 km, elettricità 0,30 €/kWh, batteria 0,597 kWh, autonomia 33,2 km (allineata al consumo misurato: 18,0 Wh/km su 48,9 km), costo d'acquisto 773,18 €, costi fissi 91 €/anno, km annui 1.500, distanza massima 18 km, obiettivo mensile 20 €.
 
 ### Batteria e letture Bluetooth
 - **Autonomia, in ordine di priorità:** consumo misurato (≥ 5 km), poi media dei cicli di ricarica, poi parametro.
@@ -66,7 +66,7 @@ VCU `0x16`, BMS `0x07`. Un blocco da 16 byte letto da `N` copre le parole `N`..`
 | mAh residui | BMS | `0x5B` (× 10), `0x91` (preciso) | |
 | Temperature | BMS | `0x96`..`0x9C` | °C; 255 = sensore assente |
 | Celle (13) | BMS | `0xA0`..`0xAC` | mV |
-| Cicli di carica | BMS | `0x59` (`cycA`) | quasi certo: 6 fisso dal 7 al 19/10 senza ricariche |
+| Cicli di carica | BMS | `0x59` (`cycA`) | **confermato**: 6 → 7 dopo la ricarica del 19/10, 7 → 8 dopo quella del 26/10 |
 | Non è un contatore | BMS | `0x92` (`cycB`) | oscilla senza ricariche |
 | Tabella tensione/carica | BMS | `0x15`..`0x1E` | non sono celle |
 
@@ -113,8 +113,8 @@ VCU `0x16`, BMS `0x07`. Un blocco da 16 byte letto da `N` copre le parole `N`..`
 
 ## 3. Prossimi passi
 
-1. **Verificare la versione 30 sul telefono:** con la ricarica del 28/10 la barra deve essere piena e la riga «Batteria letta» deve dire «14% · 17:39 (non aggiornata)». Se no, farsi mandare un backup JSON e riprodurre il caso con l'harness.
-2. **Confermare i cicli:** alla prima lettura dopo una ricarica registrata, `cycA` dovrebbe salire (era 6 prima della ricarica del 19/10). La scheda toglie «da confermare» da sola; se dopo 3 ricariche non sale mai, la riga sparisce e si cerca nella zona BMS `0xC0`..`0xDF` con la diagnostica.
+1. **Fatto (28/10, backup):** v30 verificata con i dati reali: dopo la ricarica del 28/10 la barra è piena (km dall'ultima ricarica = 0) e la riga «Batteria letta» mostra «14% · oggi 17:39 (all'attacco del caricatore)». Km in monopattino registrati (343,5) = contachilometri letto (343,5). La lettura delle 17:39 era stata salvata senza km/caricatore (versione precedente): il recupero dallo storico letture funziona.
+2. **Fatto:** cicli confermati (`cycA` = 8). Alla prossima lettura dopo la ricarica del 28/10 dovrebbe dire 9.
 3. **Capacità reale:** nei backup futuri controllare se `cap5A` o `cap8A` scendono sotto 12.750 mAh.
 4. **Autonomia:** il consumo misurato propone 33 km contro i 34 del parametro; d'inverno il consumo salirà. Ricontrollare a gennaio.
 5. **Km annui:** dal 22/09/2027 l'app usa da sola i km reali; fino ad allora 1.500. Verificare a fine inverno che la stima resti sensata.
