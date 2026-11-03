@@ -288,5 +288,78 @@ gruppo("Contachilometri auto");
   check(sc && sc.odo === undefined, "il contachilometri auto non finisce su un viaggio in monopattino");
 })();
 
+// ---------------------------------------------------------------------------
+gruppo("Rifornimenti auto");
+(function(){
+  function f(date, odo, litri, euro, pieno){ return { id: id(date + "T10:00"), date: date, odo: odo, litri: litri, euro: euro, pieno: pieno !== false }; }
+  // pieno a 48.000; parziale a 48.300 (15 l); pieno a 48.600 (30 l): 45 l su 600 km = 7,5 l/100
+  var fu = [f("2026-10-01", 48000, 40, 80), f("2026-10-10", 48300, 15, 30, false), f("2026-10-20", 48600, 30, 59.7)];
+  var a = avvia({ extra: { rotaia_fuel_v1: fu } }, "2026-11-03T10:00"), t = a.t;
+  var m = t.consumoAutoMisurato();
+  check(vicino(m.l100, 7.5) && m.km === 600 && m.n === 1 && m.enough, "da pieno a pieno con un parziale in mezzo: 7,5 l/100 km", m);
+  check(t.ultimoRifornimento().date === "2026-10-20", "ultimo rifornimento per data");
+  a = avvia({ extra: { rotaia_fuel_v1: [fu[0]] } }, "2026-11-03T10:00");
+  check(a.t.consumoAutoMisurato().l100 === null, "un solo pieno: consumo non ancora misurabile");
+  a = avvia({ extra: { rotaia_fuel_v1: [f("2026-10-01", 48000, 40, 80, false), f("2026-10-20", 48600, 30, 60)] } }, "2026-11-03T10:00");
+  check(a.t.consumoAutoMisurato().l100 === null, "senza un pieno di partenza: niente consumo");
+  a = avvia({ extra: { rotaia_fuel_v1: [f("2026-10-01", 48000, 40, 80), f("2026-10-20", 48050, 30, 60)] } }, "2026-11-03T10:00");
+  check(a.t.consumoAutoMisurato().l100 === null, "60 l/100 km: scartato come fuori scala");
+
+  // dal modulo: salvataggio, prezzo benzina aggiornato da solo
+  a = avvia({ extra: { rotaia_fuel_v1: fu } }, "2026-11-03T10:00");
+  a.el("toggleFuelFormBtn").click();
+  check(a.el("fuelForm").style.display === "block", "«Registra rifornimento» apre il modulo");
+  a.el("fuelDate").value = "2026-11-03"; a.el("fuelOdo").value = "49000"; a.el("fuelLitri").value = "32"; a.el("fuelEuro").value = "62.08";
+  a.el("fuelPieno").checked = true;
+  a.el("fuelLitri").dispatch("input");
+  check(/1,940 €\/l/.test(a.el("fuelLiveNote").textContent), "prezzo al litro mostrato mentre scrivi", a.el("fuelLiveNote").textContent);
+  a.el("fuelForm").dispatch("submit", { preventDefault: function(){} });
+  var salvato = JSON.parse(a.store.rotaia_fuel_v1);
+  check(salvato.length === 4 && salvato[3].odo === 49000 && salvato[3].pieno === true, "rifornimento salvato");
+  check(a.t.params.prezzoBenzina === 1.94, "prezzo benzina aggiornato a 1,94 €/l", a.t.params.prezzoBenzina);
+  check(JSON.parse(a.store.rotaia_params_v2).prezzoBenzina === 1.94, "e salvato nei parametri");
+  var m2 = a.t.consumoAutoMisurato();
+  check(vicino(m2.l100, (45 + 32) / 1000 * 100), "consumo su due intervalli: 7,7 l/100 km", m2);
+  check(a.el("syncFuelBtn").style.display === "block", "pulsante «Usa il consumo misurato» (10 → 7,7)");
+  a.el("syncFuelBtn").click();
+  check(a.t.params.consumoAuto === 7.7, "consumo auto aggiornato", a.t.params.consumoAuto);
+
+  // un nuovo spostamento in auto usa il nuovo prezzo; i vecchi restano coi loro
+  var vecchi = a.t.trips.filter(function(x){ return x.mezzo === "auto"; }).map(function(x){ return x.pb; });
+  check(vecchi.every(function(p){ return p === 2; }), "gli spostamenti passati tengono il loro prezzo");
+
+  // validazioni
+  a = avvia({ extra: { rotaia_fuel_v1: fu } }, "2026-11-03T10:00");
+  a.el("toggleFuelFormBtn").click();
+  a.el("fuelDate").value = "2026-11-03"; a.el("fuelOdo").value = "48500"; a.el("fuelLitri").value = "30"; a.el("fuelEuro").value = "60";
+  a.el("fuelForm").dispatch("submit", { preventDefault: function(){} });
+  check(JSON.parse(a.store.rotaia_fuel_v1).length === 3, "contachilometri più basso del rifornimento precedente: non salva");
+  a.el("fuelOdo").value = "49000"; a.el("fuelEuro").value = "600";
+  a.el("fuelForm").dispatch("submit", { preventDefault: function(){} });
+  check(JSON.parse(a.store.rotaia_fuel_v1).length === 3, "importo fuori scala: non salva");
+  a.el("fuelEuro").value = "6";
+  a.el("fuelForm").dispatch("submit", { preventDefault: function(){} });
+  check(JSON.parse(a.store.rotaia_fuel_v1).length === 3, "0,20 €/l: non salva");
+
+  // nota con l'ultimo contachilometri noto (viaggi e rifornimenti)
+  a = avvia({ trips: [trip("2026-10-25", "auto", 167, { odo: 48700 })], extra: { rotaia_fuel_v1: fu } }, "2026-11-03T10:00");
+  a.el("toggleFuelFormBtn").click();
+  a.el("fuelOdo").value = "48750"; a.el("fuelOdo").dispatch("input");
+  check(/\+50 km dall'ultimo contachilometri \(viaggio/.test(a.el("fuelLiveNote").textContent), "km dall'ultimo contachilometri noto", a.el("fuelLiveNote").textContent);
+
+  // backup: esportati e reimportati senza duplicati
+  a = avvia({ extra: { rotaia_fuel_v1: fu } }, "2026-11-03T10:00");
+  var bk = a.t.buildFullBackup();
+  check(bk.data.fuels.length === 3, "rifornimenti nel backup");
+  var b = avvia({ extra: {} }, "2026-11-03T10:00");
+  b.t.importFullBackup(JSON.parse(JSON.stringify(bk)));
+  check(JSON.parse(b.store.rotaia_fuel_v1).length === 3, "importati in un'app vuota");
+  b.t.importFullBackup(JSON.parse(JSON.stringify(bk)));
+  check(JSON.parse(b.store.rotaia_fuel_v1).length === 3, "reimportati: nessun duplicato");
+  bk.data.fuels.push({ id: "x", date: "2026-10-30", odo: -5, litri: 10, euro: 20 });
+  b.t.importFullBackup(bk);
+  check(JSON.parse(b.store.rotaia_fuel_v1).length === 3, "rifornimento non valido scartato");
+})();
+
 console.log("\n" + ok + " superati, " + ko + " falliti");
 process.exit(ko ? 1 : 0);

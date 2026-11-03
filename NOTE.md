@@ -1,6 +1,6 @@
 # Max G3 Saving — note di passaggio per una nuova chat
 
-Aggiornato: 3 novembre 2026, versione 32 (`rotaia-cache-v32`). Leggere tutto prima di toccare il codice.
+Aggiornato: 3 novembre 2026, versione 33 (`rotaia-cache-v33`). Leggere tutto prima di toccare il codice.
 
 App personale (PWA, pagina unica) che confronta gli spostamenti in monopattino (Ninebot Max G3) con quelli in auto, calcola il risparmio e legge i dati del monopattino via Bluetooth. Un solo utente, nessun server, nessun account. Interfaccia e chat in italiano.
 
@@ -17,14 +17,14 @@ App personale (PWA, pagina unica) che confronta gli spostamenti in monopattino (
 |---|---|
 | `index.html` | Tutta l'app: HTML, CSS e JS in un unico `<script>` finale (circa 3.200 righe) |
 | `g3ble.js` | Bluetooth col Max G3: cifratura, abbinamento, lettura registri, lettura diagnostica |
-| `sw.js` | Service worker. `CACHE_NAME = "rotaia-cache-v32"` |
+| `sw.js` | Service worker. `CACHE_NAME = "rotaia-cache-v33"` |
 | `test/harness.js`, `test/run.js` | Test in Node senza dipendenze, dati sintetici: `node test/run.js` |
 | `manifest.json`, `icon-*.png`, `apple-touch-icon.png` | PWA |
 | `NOTE.md` | Questo file |
 
 ### Schermate
 - **Dashboard:** promemoria lettura (vedi sotto), risparmio netto (numero principale), riga spese di manutenzione già tolte, lordo, barra di ammortamento, data di pareggio, proiezione annua, km per mezzo, % d'uso, CO2, serie di giorni, obiettivo mensile, grafico mensile con **«Condividi il grafico»** (immagine PNG 1080×1080 disegnata su canvas, dal primo mese con dati, colori del tema), **Confronto tra mesi e stagioni**, grafico cumulato, promemoria (nulla registrato oggi, backup). Schede **Stato batteria** e **Batteria monopattino** (barra, km dall'ultima ricarica, autonomia, km alla prossima ricarica, ultima % letta, consumo misurato, Registra ricarica, Storico ricariche).
-- **Aggiungi:** data, mezzo, km, «Leggi km dal monopattino» (Bluetooth), per l'auto **«Contachilometri auto»** che compila i km, spunta «Recupero di km passati», per l'auto «Si poteva fare in monopattino?» (Automatico/Sì/No), tragitti salvati.
+- **Aggiungi:** data, mezzo, km, «Leggi km dal monopattino» (Bluetooth), per l'auto **«Contachilometri auto»** che compila i km, scheda **⛽ Rifornimenti auto** (consumo misurato, ultimo prezzo, Registra rifornimento, storico), spunta «Recupero di km passati», per l'auto «Si poteva fare in monopattino?» (Automatico/Sì/No), tragitti salvati.
 - **Storico:** filtri mese e mezzo con **riquadro dei totali** quando un filtro è attivo, elenco modificabile, scheda **Spese di manutenzione**, backup (JSON completo, condivisione, CSV, import).
 - **Parametri:** prezzi, ora del **promemoria lettura** (scheda Bluetooth, 17-22 o spento), consumo auto, batteria, autonomia, costo d'acquisto, costi fissi annui, km annui, distanza massima in monopattino, obiettivo mensile; prezzi attuali su tutto lo storico; Bluetooth (chiave, lettura diagnostica); **Guida rapida** (aggiornata al 28/10); riga **«Versione NN · data»** in fondo.
 
@@ -54,7 +54,13 @@ Benzina 1,989 €/l (dal 26/10; prima 2,13), auto 10,8 l/100 km, elettricità 0,
 - Richiesta dell'utente (3/11): registra puntualmente anche i viaggi in auto, ma odiava calcolare a mano i km dall'ultima volta. Ora scrive il totale del cruscotto e i km = contachilometri − riferimento − viaggi in auto **senza** contachilometri inseriti dopo il riferimento (per id/istante).
 - Il contachilometri è salvato sul viaggio (`t.odo`, solo auto): niente chiave separata. Riferimento = viaggio in auto con `odo` più alto sotto il valore inserito, escluso quello in modifica; quindi modifiche e cancellazioni si riassestano da sole e tutto va nel backup (l'import valida `odo`).
 - Prima volta: solo punto di partenza (km a mano). Nuovo valore più basso dell'ultimo: errore e salvataggio bloccato. Riferimento di più di un giorno prima e km oltre la soglia: nota che la differenza comprende tutti i viaggi saltati (i brevi vanno registrati a parte). Storico mostra «cont. 48.190 km».
-- Scartati: lettura via OBD Bluetooth (serve un adattatore, molte auto non danno il contachilometri), lettura da foto (servirebbe una libreria). **Rifornimenti** (contachilometri + litri + € → consumo reale e prezzo benzina automatici) proposti all'utente ma non ancora approvati.
+- Scartati: lettura via OBD Bluetooth (serve un adattatore, molte auto non danno il contachilometri), lettura da foto (servirebbe una libreria).
+
+### Rifornimenti auto (`consumoAutoMisurato`, `renderFuel`)
+- `rotaia_fuel_v1`: `{id,date,odo,litri,euro,pieno}`; nel backup come `fuels` (import validato, senza duplicati).
+- **Prezzo benzina automatico:** al salvataggio, il €/l dell'ultimo rifornimento per data diventa `params.prezzoBenzina` (vale per i prossimi spostamenti; i passati hanno `pb` bloccato). Decisione dell'utente (3/11).
+- **Consumo da pieno a pieno:** ordinati per contachilometri; dal primo pieno, i litri dei rifornimenti successivi fino al pieno seguente / km tra i due pieni. Intervalli fuori 3-30 l/100 km scartati. Con ≥ 200 km misurati e scarto ≥ 0,2 dal parametro compare «Usa il consumo misurato»: **non automatico**, perché il consumo auto si applica anche al passato.
+- Validazioni: litri ≤ 150, € ≤ 500, prezzo 0,50-5 €/l, contachilometri coerente con la data rispetto agli altri rifornimenti. Nota sotto il modulo: prezzo al litro e km dall'ultimo contachilometri noto (viaggi o rifornimenti). In Parametri, nota sotto il consumo auto. Il contachilometri dei rifornimenti **non** fa da riferimento per i km dei viaggi (si rifornisce spesso a metà viaggio).
 
 ### Promemoria lettura (`promemoriaLettura`)
 - Solo in Dashboard (nessuna notifica di sistema: una PWA senza server non può programmarle a un'ora precisa). Si ricalcola a ogni apertura e al ritorno in primo piano (`visibilitychange`).
@@ -123,7 +129,7 @@ VCU `0x16`, BMS `0x07`. Un blocco da 16 byte letto da `N` copre le parole `N`..`
 ### Metodo di lavoro
 1. L'utente segnala un problema o chiede proposte; si propone in breve, lui risponde «Procedi» o «Sì».
 2. Si implementa, si controlla la sintassi (`node --check` sullo script estratto), si eseguono i test, si fa commit e push, si risponde in italiano in modo breve, con i numeri reali quando servono.
-3. **Test:** `node test/run.js` (70 controlli, dati sintetici, fuso Europe/Rome). `test/harness.js` estrae l'ultimo `<script>` di `index.html`, esporta tutte le funzioni di primo livello in `__t`, lo esegue con `vm` con DOM, `localStorage`, `G3BLE` e **orologio simulati** (`load({storage, now, lettura})`, `setNow`). Per un caso reale: caricare il backup JSON dell'utente come `storage` (chiavi `rotaia_*`) senza salvarlo nel repository. Quando si tocca la batteria, coprire: ricarica registrata prima/dopo la lettura, lettura col caricatore, uscita dopo la ricarica, nessuna ricarica. Aggiungere un test per ogni novità.
+3. **Test:** `node test/run.js` (92 controlli, dati sintetici, fuso Europe/Rome). `test/harness.js` estrae l'ultimo `<script>` di `index.html`, esporta tutte le funzioni di primo livello in `__t`, lo esegue con `vm` con DOM, `localStorage`, `G3BLE` e **orologio simulati** (`load({storage, now, lettura})`, `setNow`). Per un caso reale: caricare il backup JSON dell'utente come `storage` (chiavi `rotaia_*`) senza salvarlo nel repository. Quando si tocca la batteria, coprire: ricarica registrata prima/dopo la lettura, lettura col caricatore, uscita dopo la ricarica, nessuna ricarica. Aggiungere un test per ogni novità.
 4. Prima del push: `git fetch origin main && git rebase origin/main` (più sessioni possono lavorare sul repository).
 5. Commit con le righe `Co-Authored-By` e `Claude-Session` indicate dalla sessione corrente.
 
@@ -131,7 +137,7 @@ VCU `0x16`, BMS `0x07`. Un blocco da 16 byte letto da `N` copre le parole `N`..`
 
 ## 3. Prossimi passi
 
-1. **Verificare la versione 32 sul telefono:** al prossimo viaggio in auto scrivere il contachilometri (la prima volta solo punto di partenza, poi km automatici).
+1. **Verificare la versione 33 sul telefono:** al prossimo viaggio in auto scrivere il contachilometri (la prima volta solo punto di partenza, poi km automatici); al prossimo pieno registrare il rifornimento (il prezzo benzina deve aggiornarsi); dal secondo pieno controllare il consumo misurato contro i 10,8 l/100 km.
 1b. **Versione 31:** domani sera dalle 19 il promemoria (se non hai letto dopo mezzogiorno); «Leggi ora» deve avviare la lettura; «Condividi il grafico» deve aprire il menu di condivisione con l'immagine; il confronto deve mostrare ottobre 0,75 €/giorno e settembre 0,88 €/giorno.
 2. **Cicli:** confermati (`cycA` = 8 il 28/10). Alla prossima lettura dopo la ricarica del 28/10 dovrebbe dire 9.
 3. **Capacità reale:** nei backup futuri controllare se `cap5A` o `cap8A` scendono sotto 12.750 mAh.
@@ -139,10 +145,9 @@ VCU `0x16`, BMS `0x07`. Un blocco da 16 byte letto da `N` copre le parole `N`..`
 5. **Km annui:** dal 22/09/2027 l'app usa da sola i km reali; fino ad allora 1.500. Verificare a fine inverno che la stima resti sensata.
 6. **Promemoria in inverno:** se l'uso cala, verificare che la pausa dopo 14 giorni basti o se l'utente preferisce spegnerlo.
 7. **Pulizia (bassa priorità):** nascondere la lettura diagnostica dietro un tocco prolungato quando la mappa dei registri sarà chiusa.
-8. **Rifornimenti** (vedi Contachilometri dell'auto): proposti il 3/11, in attesa del sì dell'utente.
 9. Le idee della lista precedente (promemoria, confronto, condivisione del grafico, test nel repository) sono tutte fatte nella v31: nuove idee vanno proposte all'utente prima di implementarle.
 
 ### Avvio rapido per la nuova chat
-- Clonare `fabriziodavi80/Rotaia`, leggere questo file, eseguire `node test/run.js`, poi in `index.html` cercare `kmAutoDaOdo`, `promemoriaLettura`, `confrontoPeriodi`, `drawMonthlyImage`, `tripSaving`, `autoEvitabile`, `renderDashboard`, `renderBattery`, `ultimaLetturaSoc`, `kmDaLettura`, `consumoMisurato`, `importFullBackup`.
+- Clonare `fabriziodavi80/Rotaia`, leggere questo file, eseguire `node test/run.js`, poi in `index.html` cercare `kmAutoDaOdo`, `consumoAutoMisurato`, `promemoriaLettura`, `confrontoPeriodi`, `drawMonthlyImage`, `tripSaving`, `autoEvitabile`, `renderDashboard`, `renderBattery`, `ultimaLetturaSoc`, `kmDaLettura`, `consumoMisurato`, `importFullBackup`.
 - Chiedere all'utente un backup JSON aggiornato se servono i dati reali.
 - Per novità Bluetooth: prima la lettura diagnostica, poi solo registri in sola lettura.

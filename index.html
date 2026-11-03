@@ -522,6 +522,42 @@
         <button type="button" class="ghost-btn" id="cancelEditBtn" style="display:none;">Annulla modifica</button>
       </form>
     </div>
+
+    <div class="card" id="fuelCard">
+      <h2>⛽ Rifornimenti auto</h2>
+      <div class="be-detail"><span>Consumo misurato</span><span class="mono" id="fuelCons">—</span></div>
+      <div class="be-detail"><span>Ultimo prezzo benzina</span><span class="mono" id="fuelPrice">—</span></div>
+      <div class="param-note" id="fuelNote"></div>
+      <button type="button" class="ghost-btn" id="syncFuelBtn" style="display:none;"></button>
+      <button type="button" class="ghost-btn" id="toggleFuelFormBtn">⛽ Registra rifornimento</button>
+      <form id="fuelForm" novalidate style="display:none; margin-top:12px;">
+        <label for="fuelDate">Data</label>
+        <input type="date" id="fuelDate">
+        <div class="field-error" id="fuelDateError"></div>
+
+        <label for="fuelOdo">Contachilometri auto</label>
+        <input type="number" id="fuelOdo" min="0" step="1" inputmode="numeric" placeholder="es. 48230">
+        <div class="field-error" id="fuelOdoError"></div>
+
+        <label for="fuelLitri">Litri (dallo scontrino)</label>
+        <input type="number" id="fuelLitri" min="0" step="0.01" inputmode="decimal" placeholder="es. 38.52">
+        <div class="field-error" id="fuelLitriError"></div>
+
+        <label for="fuelEuro">Importo pagato (€)</label>
+        <input type="number" id="fuelEuro" min="0" step="0.01" inputmode="decimal" placeholder="es. 76.60">
+        <div class="field-error" id="fuelEuroError"></div>
+        <div class="param-note" id="fuelLiveNote" style="margin-top:6px;"></div>
+
+        <label class="rec-row"><input type="checkbox" id="fuelPieno" checked> Pieno (serbatoio riempito fino allo scatto)</label>
+
+        <button type="submit" class="primary-btn" id="fuelSubmitBtn">Salva rifornimento</button>
+        <button type="button" class="ghost-btn" id="cancelFuelEditBtn" style="display:none;">Annulla modifica</button>
+      </form>
+      <details class="mini-details" style="margin-top:14px;">
+        <summary>Storico rifornimenti</summary>
+        <div id="fuelHistoryList" style="margin-top:8px;"></div>
+      </details>
+    </div>
   </section>
 
   <section class="view" id="view-history">
@@ -580,6 +616,7 @@
 
           <label for="pConsumoAuto">Consumo auto (litri/100 km)</label>
           <input type="number" id="pConsumoAuto" min="0" step="0.1" inputmode="decimal">
+          <div class="param-note" id="pConsumoAutoNote" style="margin-top:6px;display:none;"></div>
 
           <label for="pElettrico">Tariffa elettrica (€/kWh)</label>
           <input type="number" id="pElettrico" min="0" step="0.01" inputmode="decimal">
@@ -700,6 +737,10 @@
         <div class="guide-item">
           <div class="guide-t">Contachilometri dell'auto 🚗</div>
           <div class="guide-d">In Aggiungi, scegliendo «Auto», scrivi il numero totale che leggi sul cruscotto a fine viaggio: i km si calcolano da soli come differenza con l'ultimo contachilometri inserito (che vedi sotto il campo). La prima volta serve solo da punto di partenza: quei km inseriscili a mano. Se nel frattempo hai registrato viaggi in auto senza contachilometri, l'app li toglie dalla differenza per non contarli due volte. Se salti qualche viaggio, al prossimo inserimento la differenza li comprende tutti in un unico viaggio: se tra questi c'era un tragitto breve che potevi fare in monopattino, registralo a parte prima. Il contachilometri resta salvato sul viaggio (si vede nello Storico ed è nel backup): modificando o eliminando un viaggio il conto si rifà da solo.</div>
+        </div>
+        <div class="guide-item">
+          <div class="guide-t">Rifornimenti auto ⛽</div>
+          <div class="guide-d">In Aggiungi, «Registra rifornimento»: contachilometri, litri e importo dello scontrino. Il prezzo al litro dell'ultimo rifornimento diventa da solo il prezzo della benzina per i prossimi spostamenti (quelli già registrati restano coi loro prezzi). Il consumo reale si misura «da pieno a pieno»: fai il pieno fino allo scatto e lascia la spunta «Pieno»; al pieno successivo l'app divide i litri messi per i km percorsi (i rifornimenti parziali in mezzo vengono sommati). Quando il consumo misurato copre almeno 200 km e differisce da quello nei parametri, compare il pulsante per usarlo: il consumo vale anche per gli spostamenti passati, per questo non cambia da solo. I rifornimenti sono nel backup.</div>
         </div>
         <div class="guide-item">
           <div class="guide-t">Abbinamento e SHU 🔑</div>
@@ -1074,7 +1115,7 @@
     if(name==="dashboard") renderDashboard();
     if(name==="history") renderHistory();
     if(name==="params") fillParamForm();
-    if(name==="add") renderRoutes();
+    if(name==="add"){ renderRoutes(); renderFuel(); }
   }
   document.querySelectorAll("nav.bottom button").forEach(function(b){
     b.addEventListener("click", function(){
@@ -1947,6 +1988,183 @@
     if(m === "auto") renderCarOdo(false);
   }
 
+  // ---------- Rifornimenti auto ----------
+  // { id, date, odo, litri, euro, pieno }. Il prezzo al litro aggiorna da solo il parametro benzina
+  // (vale per i prossimi spostamenti: i passati restano coi loro prezzi). Il consumo si misura
+  // "da pieno a pieno": litri messi dopo un pieno fino al pieno successivo / km percorsi tra i due.
+  var FUEL_KEY = "rotaia_fuel_v1";
+  var fuels = loadJSON(FUEL_KEY, []);
+  var editingFuelId = null;
+  function fuelsSorted(){
+    return fuels.slice().sort(function(a,b){ return a.odo - b.odo || (a.date < b.date ? -1 : a.date > b.date ? 1 : 0); });
+  }
+  function prezzoLitro(f){ return f.litri > 0 ? f.euro / f.litri : null; }
+  function consumoAutoMisurato(){
+    var fs = fuelsSorted(), litri = 0, km = 0, n = 0, prev = null, acc = 0;
+    fs.forEach(function(f){
+      if(prev === null){ if(f.pieno) prev = f; return; }
+      acc += f.litri;
+      if(!f.pieno) return;
+      var dk = f.odo - prev.odo, l100 = dk > 0 ? acc / dk * 100 : null;
+      // valori fuori scala: probabile rifornimento dimenticato o contachilometri sbagliato
+      if(l100 !== null && l100 >= 3 && l100 <= 30){ litri += acc; km += dk; n++; }
+      prev = f; acc = 0;
+    });
+    return { l100: km > 0 ? litri / km * 100 : null, km: km, litri: litri, n: n, enough: n >= 1 && km >= 200 };
+  }
+  function ultimoRifornimento(){
+    var last = null;
+    fuels.forEach(function(f){ if(!last || f.date > last.date || (f.date === last.date && f.odo > last.odo)) last = f; });
+    return last;
+  }
+  // Contachilometri più alto noto per l'auto (viaggi e rifornimenti)
+  function odoAutoNoto(){
+    var best = null;
+    trips.forEach(function(t){ if(t.mezzo === "auto" && typeof t.odo === "number" && (!best || t.odo > best.odo)) best = { odo: t.odo, date: t.date, da: "viaggio" }; });
+    fuels.forEach(function(f){ if(!best || f.odo > best.odo) best = { odo: f.odo, date: f.date, da: "rifornimento" }; });
+    return best;
+  }
+  function fmtL100(v){ return v.toFixed(1).replace(".", ",") + " l/100 km"; }
+  function fmtEurL(v){ return v.toFixed(3).replace(".", ",") + " €/l"; }
+
+  function renderFuel(){
+    var m = consumoAutoMisurato(), last = ultimoRifornimento();
+    document.getElementById("fuelCons").textContent = m.l100 !== null
+      ? fmtL100(m.l100) + " su " + Math.round(m.km).toLocaleString("it-IT") + " km" + (m.enough ? "" : " (pochi km)")
+      : "—";
+    document.getElementById("fuelPrice").textContent = last ? fmtEurL(prezzoLitro(last)) + " · " + fmtGiorno(last.date) : "—";
+    var pieni = fuels.filter(function(f){ return f.pieno; }).length;
+    document.getElementById("fuelNote").textContent = !fuels.length
+      ? "Quando fai benzina registra contachilometri, litri ed euro dello scontrino: il prezzo della benzina si aggiorna da solo e, dal secondo pieno, l'app misura il consumo reale dell'auto."
+      : m.l100 === null
+      ? (pieni ? "Serve un altro pieno per misurare il consumo: si calcola tra due pieni." : "Il consumo si misura tra due pieni: fai il pieno fino allo scatto e spunta «Pieno».")
+      : "Consumo nei parametri: " + fmtL100(params.consumoAuto) + ".";
+    var btn = document.getElementById("syncFuelBtn");
+    if(m.enough && Math.abs(m.l100 - params.consumoAuto) >= 0.2){
+      btn.style.display = "block";
+      btn.textContent = "Usa il consumo misurato (" + params.consumoAuto.toString().replace(".", ",") + " → " + (Math.round(m.l100 * 10) / 10).toString().replace(".", ",") + " l/100 km)";
+    } else btn.style.display = "none";
+    renderFuelHistory();
+  }
+  function renderFuelHistory(){
+    var wrap = document.getElementById("fuelHistoryList");
+    if(!fuels.length){ wrap.innerHTML = '<div class="param-note">Nessun rifornimento registrato.</div>'; return; }
+    var asc = fuelsSorted(), prevOdo = {};
+    for(var i=1;i<asc.length;i++) prevOdo[asc[i].id] = asc[i].odo - asc[i-1].odo;
+    wrap.innerHTML = asc.slice().reverse().map(function(f){
+      var d = prevOdo[f.id];
+      return '<div class="charge-row" data-id="'+f.id+'">'
+        + '<div><div class="c-main">'+escHtml(fmtGiorno(f.date))+' · '+f.litri.toFixed(2).replace(".", ",")+' l · '+euro(f.euro)+'</div>'
+        + '<div class="c-sub">'+fmtEurL(prezzoLitro(f))+' · '+fmtOdo(f.odo)+(d !== undefined ? ' · +'+fmtOdo(d)+' dal precedente' : '')+(f.pieno ? ' · pieno' : ' · parziale')+'</div></div>'
+        + '<button class="trip-del" data-id="'+f.id+'" aria-label="Elimina">×</button></div>';
+    }).join("");
+    wrap.querySelectorAll(".charge-row").forEach(function(row){
+      row.addEventListener("click", function(e){ if(e.target.closest(".trip-del")) return; startEditFuel(row.getAttribute("data-id")); });
+    });
+    wrap.querySelectorAll(".trip-del").forEach(function(b){
+      b.addEventListener("click", function(e){
+        e.stopPropagation();
+        if(!confirm("Eliminare questo rifornimento?")) return;
+        fuels = fuels.filter(function(f){ return f.id !== b.getAttribute("data-id"); });
+        saveJSON(FUEL_KEY, fuels);
+        if(editingFuelId === b.getAttribute("data-id")) resetFuelForm(true);
+        renderFuel();
+        showToast("Rifornimento eliminato");
+      });
+    });
+  }
+  function resetFuelForm(hide){
+    editingFuelId = null;
+    ["fuelOdo","fuelLitri","fuelEuro"].forEach(function(id){ document.getElementById(id).value = ""; clearFieldError(id); });
+    document.getElementById("fuelDate").value = todayStr(); clearFieldError("fuelDate");
+    document.getElementById("fuelPieno").checked = true;
+    document.getElementById("fuelSubmitBtn").textContent = "Salva rifornimento";
+    document.getElementById("cancelFuelEditBtn").style.display = "none";
+    if(hide) document.getElementById("fuelForm").style.display = "none";
+    renderFuelLive();
+  }
+  function startEditFuel(id){
+    var f = fuels.filter(function(x){ return x.id === id; })[0];
+    if(!f) return;
+    editingFuelId = id;
+    document.getElementById("fuelForm").style.display = "block";
+    document.getElementById("fuelDate").value = f.date;
+    document.getElementById("fuelOdo").value = f.odo;
+    document.getElementById("fuelLitri").value = f.litri;
+    document.getElementById("fuelEuro").value = f.euro;
+    document.getElementById("fuelPieno").checked = !!f.pieno;
+    document.getElementById("fuelSubmitBtn").textContent = "Salva modifiche";
+    document.getElementById("cancelFuelEditBtn").style.display = "block";
+    renderFuelLive();
+  }
+  // Sotto i campi: prezzo al litro e km dall'ultimo contachilometri noto
+  function renderFuelLive(){
+    var l = parseFloat(document.getElementById("fuelLitri").value), e = parseFloat(document.getElementById("fuelEuro").value);
+    var o = parseFloat(document.getElementById("fuelOdo").value), parts = [];
+    if(isFinite(l) && l > 0 && isFinite(e) && e > 0) parts.push("Prezzo: " + fmtEurL(e / l) + ".");
+    var noto = editingFuelId ? null : odoAutoNoto();
+    if(noto) parts.push(isFinite(o) && o > noto.odo ? "+" + fmtOdo(o - noto.odo) + " dall'ultimo contachilometri (" + noto.da + " del " + fmtGiorno(noto.date) + ")."
+      : "Ultimo contachilometri: " + fmtOdo(noto.odo) + " (" + noto.da + " del " + fmtGiorno(noto.date) + ").");
+    document.getElementById("fuelLiveNote").textContent = parts.join(" ");
+  }
+  ["fuelLitri","fuelEuro","fuelOdo"].forEach(function(id){ document.getElementById(id).addEventListener("input", renderFuelLive); });
+  document.getElementById("toggleFuelFormBtn").addEventListener("click", function(){
+    var f = document.getElementById("fuelForm"), open = f.style.display !== "block";
+    resetFuelForm(false);
+    f.style.display = open ? "block" : "none";
+  });
+  document.getElementById("cancelFuelEditBtn").addEventListener("click", function(){ resetFuelForm(true); });
+  document.getElementById("syncFuelBtn").addEventListener("click", function(){
+    var m = consumoAutoMisurato();
+    if(!m.enough) return;
+    params.consumoAuto = Math.round(m.l100 * 10) / 10;
+    saveJSON(PARAMS_KEY, params);
+    renderFuel(); renderDashboard(); fillParamForm();
+    showToast("✓ Consumo auto aggiornato: " + fmtL100(params.consumoAuto));
+  });
+  document.getElementById("fuelForm").addEventListener("submit", function(e){
+    e.preventDefault();
+    ["fuelDate","fuelOdo","fuelLitri","fuelEuro"].forEach(clearFieldError);
+    var date = document.getElementById("fuelDate").value;
+    var odo = parseFloat(document.getElementById("fuelOdo").value);
+    var litri = parseFloat(document.getElementById("fuelLitri").value);
+    var eur = parseFloat(document.getElementById("fuelEuro").value);
+    var ok = true;
+    if(!date){ setFieldError("fuelDate", "Inserisci la data."); ok = false; }
+    if(!isFinite(odo) || odo <= 0){ setFieldError("fuelOdo", "Inserisci il contachilometri dell'auto."); ok = false; }
+    if(!isFinite(litri) || litri <= 0 || litri > 150){ setFieldError("fuelLitri", "Inserisci i litri dello scontrino (es. 38.52)."); ok = false; }
+    if(!isFinite(eur) || eur <= 0 || eur > 500){ setFieldError("fuelEuro", "Inserisci l'importo pagato (es. 76.60)."); ok = false; }
+    if(ok && (eur / litri < 0.5 || eur / litri > 5)){ setFieldError("fuelEuro", "Il prezzo risulta " + fmtEurL(eur / litri) + ": controlla litri e importo."); ok = false; }
+    if(ok){
+      // il contachilometri deve crescere con la data rispetto agli altri rifornimenti
+      var conflitto = fuels.filter(function(f){
+        return f.id !== editingFuelId && ((f.date < date && f.odo > odo) || (f.date > date && f.odo < odo));
+      })[0];
+      if(conflitto){ setFieldError("fuelOdo", "Non torna con il rifornimento del " + fmtGiorno(conflitto.date) + " (" + fmtOdo(conflitto.odo) + "): controlla data e contachilometri."); ok = false; }
+    }
+    if(!ok) return;
+    var rec = { date: date, odo: Math.round(odo * 10) / 10, litri: Math.round(litri * 100) / 100, euro: Math.round(eur * 100) / 100, pieno: document.getElementById("fuelPieno").checked };
+    if(editingFuelId){
+      var f = fuels.filter(function(x){ return x.id === editingFuelId; })[0];
+      if(f) Object.assign(f, rec);
+    } else {
+      rec.id = newId();
+      fuels.push(rec);
+    }
+    saveJSON(FUEL_KEY, fuels);
+    var msg = editingFuelId ? "✓ Rifornimento modificato" : "✓ Rifornimento salvato";
+    // il prezzo dell'ultimo rifornimento (per data) diventa il prezzo benzina dei prossimi spostamenti
+    var last = ultimoRifornimento(), prezzo = Math.round(prezzoLitro(last) * 1000) / 1000;
+    if(prezzo !== params.prezzoBenzina){
+      params.prezzoBenzina = prezzo;
+      saveJSON(PARAMS_KEY, params);
+      msg += " · benzina a " + fmtEurL(prezzo);
+    }
+    resetFuelForm(true);
+    renderFuel();
+    showToast(msg);
+  });
+
   // ---------- Contachilometri dell'auto ----------
   // Ogni viaggio in auto può ricordare il contachilometri a fine viaggio (t.odo). Il riferimento è
   // il viaggio con il contachilometri più alto sotto quello inserito (escluso quello in modifica):
@@ -2398,7 +2616,7 @@
       app: "max-g3-saving", format: 1, exportedAt: new Date().toISOString(),
       data: {
         trips: trips, charges: charges, routes: routes, params: params, spese: spese,
-        reads: loadJSON(READS_KEY, []), odo: loadJSON(ODO_KEY, null), soc: loadJSON(SOC_KEY, null)
+        reads: loadJSON(READS_KEY, []), odo: loadJSON(ODO_KEY, null), soc: loadJSON(SOC_KEY, null), fuels: fuels
       }
     };
   }
@@ -2649,6 +2867,18 @@
     reads.sort(function(a,b){ return a.ts - b.ts; });
     if(reads.length > 300) reads = reads.slice(reads.length - 300);
 
+    added.fuels = 0;
+    have = {}; fuels.forEach(function(f){ have[f.id] = true; });
+    arr(d.fuels).forEach(function(f){
+      if(!f) return;
+      var date = normalizeDate(f.date), odo = Number(f.odo), litri = Number(f.litri), eur = Number(f.euro);
+      if(!date || !isFinite(odo) || odo <= 0 || odo >= 10000000 || !isFinite(litri) || litri <= 0 || litri > 150 || !isFinite(eur) || eur <= 0 || eur > 500) return;
+      var id = validId(f.id) ? f.id : newId();
+      if(have[id]) return;
+      have[id] = true;
+      fuels.push({ id:id, date:date, odo:odo, litri:litri, euro:eur, pieno: f.pieno === true }); added.fuels++;
+    });
+
     var np = {};
     if(d.params && typeof d.params === "object"){
       Object.keys(DEFAULT_PARAMS).forEach(function(k){
@@ -2673,11 +2903,11 @@
     }
 
     saveJSON(TRIPS_KEY, trips); saveJSON(CHARGES_KEY, charges); saveJSON(ROUTES_KEY, routes);
-    saveJSON(READS_KEY, reads); saveJSON(PARAMS_KEY, params); saveJSON(SPESE_KEY, spese);
+    saveJSON(READS_KEY, reads); saveJSON(PARAMS_KEY, params); saveJSON(SPESE_KEY, spese); saveJSON(FUEL_KEY, fuels);
     renderHistory();
     renderDashboard();
-    alert("Backup importato: " + added.trips + " spostamenti, " + added.charges + " ricariche, " + added.routes + " tragitti, " + added.spese + " spese e "
-      + added.reads + " letture aggiunti. Gli elementi già presenti sono stati saltati.");
+    alert("Backup importato: " + added.trips + " spostamenti, " + added.charges + " ricariche, " + added.routes + " tragitti, " + added.spese + " spese, "
+      + added.fuels + " rifornimenti e " + added.reads + " letture aggiunti. Gli elementi già presenti sono stati saltati.");
   }
 
   document.getElementById("fullExportBtn").addEventListener("click", exportFullBackup);
@@ -2743,6 +2973,10 @@
 
   function fillParamForm(){
     PARAM_FIELDS.forEach(function(f){ document.getElementById(f[0]).value = params[f[1]]; });
+    var mc = consumoAutoMisurato(), lf = ultimoRifornimento(), cn = document.getElementById("pConsumoAutoNote");
+    cn.style.display = mc.l100 !== null || lf ? "block" : "none";
+    cn.textContent = (mc.l100 !== null ? "Misurato dai rifornimenti: " + fmtL100(mc.l100) + ". " : "")
+      + (lf ? "Il prezzo della benzina si aggiorna da solo a ogni rifornimento registrato (ultimo " + fmtEurL(prezzoLitro(lf)) + " il " + fmtGiorno(lf.date) + ")." : "");
     document.getElementById("pObiettivo").value = params.obiettivoMensile || 0;
     renderDerived(params);
   }
@@ -3286,7 +3520,7 @@
 
   // ---------- Versione ----------
   // Da tenere uguale al numero di CACHE_NAME in sw.js (rotaia-cache-vNN) a ogni modifica.
-  var APP_VERSION = 32, APP_DATE = "3 novembre 2026";
+  var APP_VERSION = 33, APP_DATE = "3 novembre 2026";
   function renderVersion(){
     var el = document.getElementById("appVersion");
     var base = "Versione " + APP_VERSION + " · " + APP_DATE;
