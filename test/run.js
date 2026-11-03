@@ -227,5 +227,66 @@ gruppo("Cicli e km letti");
   check(k.tipo === "nuovi" && vicino(k.km, 15.5), "km letti: contachilometri − riferimento", k);
 })();
 
+// ---------------------------------------------------------------------------
+gruppo("Contachilometri auto");
+(function(){
+  var base = [trip("2026-10-20", "auto", 30, { odo: 48000 }), trip("2026-10-25", "auto", 167, { odo: 48167 })];
+  base[0].id = id("2026-10-20T19:00"); base[1].id = id("2026-10-25T20:00");
+  var a = avvia({ trips: base }, "2026-11-03T18:00"), t = a.t;
+  check(t.ultimoOdoAuto().odo === 48167, "ultimo contachilometri: il più alto");
+  var k = t.kmAutoDaOdo(48190);
+  check(k.tipo === "ok" && k.km === 23 && k.delta === 23, "48.190 − 48.167 = 23 km", k);
+  check(t.kmAutoDaOdo(48100).tipo === "basso", "più basso dell'ultimo: errore");
+  a = avvia({ trips: [] }, "2026-11-03T18:00");
+  check(a.t.kmAutoDaOdo(48190).tipo === "primo", "nessun contachilometri salvato: prima lettura");
+
+  // viaggio inserito a mano (senza contachilometri) dopo il riferimento: tolto dalla differenza
+  var man = trip("2026-10-28", "auto", 8); man.id = id("2026-10-28T09:00");
+  a = avvia({ trips: base.concat([man]) }, "2026-11-03T18:00");
+  k = a.t.kmAutoDaOdo(48190);
+  check(k.km === 15 && k.manuali === 8, "toglie gli 8 km già registrati a mano", k);
+
+  // dal modulo: Auto, scrivo il contachilometri, i km si compilano e si salvano col viaggio
+  a = avvia({ trips: base }, "2026-11-03T18:00");
+  a.el("btnCar").click();
+  check(a.el("carOdoBox").style.display === "block", "campo visibile con «Auto»");
+  check(/Ultimo: 48\.167 km/.test(a.el("tripOdoNote").textContent), "nota con l'ultimo contachilometri", a.el("tripOdoNote").textContent);
+  a.el("tripDate").value = "2026-11-03";
+  a.el("tripOdo").value = "48190";
+  a.el("tripOdo").dispatch("input");
+  check(a.el("tripKm").value === 23, "km compilati: 23", a.el("tripKm").value);
+  a.el("tripForm").dispatch("submit");
+  var nuovo = a.t.trips.filter(function(x){ return x.date === "2026-11-03"; })[0];
+  check(nuovo && nuovo.mezzo === "auto" && nuovo.km === 23 && nuovo.odo === 48190, "viaggio salvato con km e contachilometri", nuovo);
+  check(a.t.autoEvitabile(nuovo) === false, "oltre 18 km: non evitabile");
+
+  // il viaggio dopo parte da 48.190
+  a.el("btnCar").click();
+  a.el("tripOdo").value = "48199";
+  a.el("tripOdo").dispatch("input");
+  check(a.el("tripKm").value === 9, "viaggio successivo: 9 km", a.el("tripKm").value);
+
+  // salvataggio bloccato con un contachilometri più basso
+  a = avvia({ trips: base }, "2026-11-03T18:00");
+  a.el("btnCar").click();
+  a.el("tripOdo").value = "48000"; a.el("tripKm").value = "5";
+  a.el("tripForm").dispatch("submit");
+  check(a.t.trips.length === 2, "contachilometri più basso: non salva");
+
+  // modifica di un viaggio: il riferimento esclude se stesso
+  a = avvia({ trips: base }, "2026-11-03T18:00");
+  k = a.t.kmAutoDaOdo(48170, base[1].id);
+  check(k.tipo === "ok" && k.km === 170, "in modifica: calcolo rispetto al viaggio precedente", k);
+  // cancellando l'ultimo, il riferimento torna al precedente
+  a = avvia({ trips: [base[0]] }, "2026-11-03T18:00");
+  check(a.t.kmAutoDaOdo(48050).km === 50, "dopo una cancellazione: riferimento al precedente");
+  // monopattino: niente contachilometri auto sul viaggio
+  a = avvia({ trips: base }, "2026-11-03T18:00");
+  a.el("btnCar").click(); a.el("tripOdo").value = "48190"; a.el("btnScooter").click();
+  a.el("tripKm").value = "5"; a.el("tripForm").dispatch("submit");
+  var sc = a.t.trips.filter(function(x){ return x.mezzo === "monopattino"; })[0];
+  check(sc && sc.odo === undefined, "il contachilometri auto non finisce su un viaggio in monopattino");
+})();
+
 console.log("\n" + ok + " superati, " + ko + " falliti");
 process.exit(ko ? 1 : 0);

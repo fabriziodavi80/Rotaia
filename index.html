@@ -494,6 +494,13 @@
           <button type="button" id="btnCar" class="r">Auto</button>
         </div>
 
+        <div id="carOdoBox" style="display:none;">
+          <label for="tripOdo">Contachilometri auto (totale sul cruscotto)</label>
+          <input type="number" id="tripOdo" min="0" step="1" inputmode="numeric" placeholder="es. 48230">
+          <div class="field-error" id="tripOdoError"></div>
+          <div class="param-note" id="tripOdoNote" style="margin-top:6px;"></div>
+        </div>
+
         <label for="tripKm">Chilometri percorsi</label>
         <input type="number" id="tripKm" min="0" step="0.1" inputmode="decimal" placeholder="es. 6.5">
         <div class="field-error" id="tripKmError"></div>
@@ -689,6 +696,10 @@
         <div class="guide-item">
           <div class="guide-t">Promemoria lettura 🔔</div>
           <div class="guide-d">Se dopo mezzogiorno non hai ancora letto il monopattino, dalle 19 (l'ora si cambia in Parametri, scheda Bluetooth, o si spegne) la Dashboard mostra un promemoria: «Leggi ora» apre Aggiungi e avvia subito la lettura. Se te ne dimentichi, la mattina dopo (fino alle 12) ti propone di leggerlo prima di uscire, e i km vanno su ieri. «Non l'ho usato» lo nasconde fino alla sera dopo. Se il monopattino resta fermo più di 14 giorni (nessuna lettura né spostamento) il promemoria va in pausa da solo. Non è una notifica del telefono: un'app web senza server non può mandarne a un'ora precisa, quindi lo vedi aprendo l'app.</div>
+        </div>
+        <div class="guide-item">
+          <div class="guide-t">Contachilometri dell'auto 🚗</div>
+          <div class="guide-d">In Aggiungi, scegliendo «Auto», scrivi il numero totale che leggi sul cruscotto a fine viaggio: i km si calcolano da soli come differenza con l'ultimo contachilometri inserito (che vedi sotto il campo). La prima volta serve solo da punto di partenza: quei km inseriscili a mano. Se nel frattempo hai registrato viaggi in auto senza contachilometri, l'app li toglie dalla differenza per non contarli due volte. Se salti qualche viaggio, al prossimo inserimento la differenza li comprende tutti in un unico viaggio: se tra questi c'era un tragitto breve che potevi fare in monopattino, registralo a parte prima. Il contachilometri resta salvato sul viaggio (si vede nello Storico ed è nel backup): modificando o eliminando un viaggio il conto si rifà da solo.</div>
         </div>
         <div class="guide-item">
           <div class="guide-t">Abbinamento e SHU 🔑</div>
@@ -1931,8 +1942,77 @@
     var tb = document.getElementById("tripBle");
     if(tb && tb.innerHTML) tb.style.display = m === "monopattino" ? "block" : "none";
     document.getElementById("fattBox").style.display = m === "auto" ? "block" : "none";
+    document.getElementById("carOdoBox").style.display = m === "auto" ? "block" : "none";
     renderFatt();
+    if(m === "auto") renderCarOdo(false);
   }
+
+  // ---------- Contachilometri dell'auto ----------
+  // Ogni viaggio in auto può ricordare il contachilometri a fine viaggio (t.odo). Il riferimento è
+  // il viaggio con il contachilometri più alto sotto quello inserito (escluso quello in modifica):
+  // così modifiche e cancellazioni non rompono il conto e tutto finisce nel backup.
+  function carOdoTrips(exceptId){
+    return trips.filter(function(t){ return t.mezzo === "auto" && typeof t.odo === "number" && t.id !== exceptId; });
+  }
+  function ultimoOdoAuto(exceptId){
+    var best = null;
+    carOdoTrips(exceptId).forEach(function(t){ if(!best || t.odo > best.odo) best = t; });
+    return best;
+  }
+  // Km in auto da un contachilometri: valore − riferimento − viaggi in auto inseriti senza
+  // contachilometri dopo il riferimento (sono già compresi nella differenza).
+  function kmAutoDaOdo(odo, exceptId){
+    var rif = null, sopra = null;
+    carOdoTrips(exceptId).forEach(function(t){
+      if(t.odo < odo){ if(!rif || t.odo > rif.odo) rif = t; }
+      else if(!sopra || t.odo < sopra.odo) sopra = t;
+    });
+    // nuovo viaggio: non può stare sotto un contachilometri già inserito
+    if(sopra && !exceptId) return { tipo: "basso", rif: ultimoOdoAuto() };
+    if(!rif) return { tipo: "primo" };
+    var rifTs = idTs(rif.id);
+    var kmMan = trips.filter(function(t){
+      return t.mezzo === "auto" && typeof t.odo !== "number" && t.id !== exceptId && t.date >= rif.date && idTs(t.id) > rifTs;
+    }).reduce(function(s,t){ return s + t.km; }, 0);
+    var delta = Math.round((odo - rif.odo) * 10) / 10;
+    return { tipo: "ok", rif: rif, delta: delta, manuali: kmMan, km: Math.round((delta - kmMan) * 10) / 10 };
+  }
+  function fmtOdo(n){ return Math.round(n).toLocaleString("it-IT") + " km"; }
+  function fmtGiorno(ds){ return new Date(ds + "T00:00:00").toLocaleDateString("it-IT", { day:"numeric", month:"short" }); }
+  // Nota sotto il campo; se il contachilometri è stato appena scritto (fill), compila i km.
+  function renderCarOdo(fill){
+    var inp = document.getElementById("tripOdo"), note = document.getElementById("tripOdoNote");
+    clearFieldError("tripOdo");
+    var ult = ultimoOdoAuto(editingId);
+    var raw = inp.value, odo = parseFloat(raw);
+    if(!raw || !isFinite(odo) || odo <= 0){
+      note.textContent = ult
+        ? "Ultimo: " + fmtOdo(ult.odo) + " il " + fmtGiorno(ult.date) + ". Scrivi il numero sul cruscotto e i km si calcolano da soli."
+        : "Facoltativo. Scrivilo a fine viaggio: dalla volta dopo i km si calcolano da soli.";
+      return;
+    }
+    var k = kmAutoDaOdo(odo, editingId);
+    if(k.tipo === "primo"){
+      note.textContent = "Prima lettura: inserisci i km di questo viaggio a mano. Dal prossimo li calcolo io.";
+      return;
+    }
+    if(k.tipo === "basso"){
+      setFieldError("tripOdo", "È più basso dell'ultimo inserito (" + fmtOdo(k.rif.odo) + " il " + fmtGiorno(k.rif.date) + "): controlla il numero.");
+      note.textContent = "";
+      return;
+    }
+    if(k.km <= 0){
+      note.textContent = "+" + fmtKm(k.delta) + " dal " + fmtGiorno(k.rif.date) + ", già tutti registrati a mano (" + fmtKm(k.manuali) + ").";
+      return;
+    }
+    if(fill){ document.getElementById("tripKm").value = k.km; clearFieldError("tripKm"); renderFatt(); }
+    var oggiData = document.getElementById("tripDate").value || todayStr();
+    note.textContent = "+" + fmtKm(k.delta) + " dall'ultimo (" + fmtOdo(k.rif.odo) + " il " + fmtGiorno(k.rif.date) + ")"
+      + (k.manuali > 0 ? ", meno " + fmtKm(k.manuali) + " già registrati a mano: " + fmtKm(k.km) + "." : ".")
+      + (k.rif.date < addDaysStr(oggiData, -1) && k.km > distanzaLimite() ? " Comprende tutti i viaggi in auto da allora: se ce n'era uno breve, registralo a parte prima." : "")
+      + (k.km > 2000 ? " ⚠️ Sono tanti: controlla il numero." : "");
+  }
+  document.getElementById("tripOdo").addEventListener("input", function(){ renderCarOdo(true); });
   // "Si poteva fare in monopattino?" per i viaggi in auto: null = automatico (entro l'autonomia)
   var fattSel = null;
   function renderFatt(){
@@ -1965,6 +2045,8 @@
     document.getElementById("cancelEditBtn").style.display = "none";
     document.getElementById("tripDate").value = todayStr();
     document.getElementById("tripKm").value = "";
+    document.getElementById("tripOdo").value = "";
+    clearFieldError("tripOdo");
     fattSel = null;
     document.getElementById("tripRec").checked = false;
     document.getElementById("tripRecNote").style.display = "none";
@@ -1982,6 +2064,7 @@
     editingId = id;
     document.getElementById("tripDate").value = t.date;
     document.getElementById("tripKm").value = t.km;
+    document.getElementById("tripOdo").value = typeof t.odo === "number" ? t.odo : "";
     fattSel = typeof t.fatt === "boolean" ? t.fatt : null;
     document.getElementById("tripRec").checked = isRec(t);
     document.getElementById("tripRecNote").style.display = isRec(t) ? "block" : "none";
@@ -2007,6 +2090,8 @@
   function setFatt(t){
     if(t.mezzo === "auto" && typeof fattSel === "boolean") t.fatt = fattSel; else delete t.fatt;
     if(document.getElementById("tripRec").checked) t.rec = true; else delete t.rec;
+    var odo = parseFloat(document.getElementById("tripOdo").value);
+    if(t.mezzo === "auto" && isFinite(odo) && odo > 0) t.odo = Math.round(odo * 10) / 10; else delete t.odo;
     return t;
   }
   document.getElementById("tripRec").addEventListener("change", function(){
@@ -2030,6 +2115,12 @@
     if(!kmRaw || !isFinite(km) || km <= 0){
       setFieldError("tripKm", "Inserisci i chilometri percorsi (es. 6.5).");
       valid = false;
+    }
+    if(mezzoSel === "auto" && document.getElementById("tripOdo").value){
+      var odoV = parseFloat(document.getElementById("tripOdo").value);
+      var odoErr = !isFinite(odoV) || odoV <= 0 ? "Contachilometri non valido."
+        : kmAutoDaOdo(odoV, editingId).tipo === "basso" ? "È più basso dell'ultimo contachilometri inserito: controlla il numero." : null;
+      if(odoErr){ setFieldError("tripOdo", odoErr); valid = false; }
     }
     if(!valid) return false;
 
@@ -2237,7 +2328,7 @@
             : '<svg viewBox="0 0 24 24" fill="none" stroke="var(--rust-ink)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 13l1.5-4.5A2 2 0 0 1 6.4 7h11.2a2 2 0 0 1 1.9 1.5L21 13"/><rect x="3" y="13" width="18" height="5" rx="1.5"/><circle cx="7" cy="18" r="1.6"/><circle cx="17" cy="18" r="1.6"/></svg>')
         + '</div>'
         + '<div class="trip-mid"><div class="d">'+dateFmt+' · '+(isScooter?"Monopattino":"Auto"+(autoEvitabile(t)?"":" · non evitabile"))+(isRec(t)?" · recupero":"")+'</div>'
-        + '<div class="k">'+t.km.toString().replace(".",",")+' km</div></div>'
+        + '<div class="k">'+t.km.toString().replace(".",",")+' km'+(typeof t.odo === "number" ? ' · cont. '+fmtOdo(t.odo) : '')+'</div></div>'
         + '<div class="trip-val '+(saving>=0?"pos":"neg")+' mono">'+(saving>=0?"+":"")+euro(saving)+'</div>'
         + '<button class="trip-del" data-id="'+t.id+'" aria-label="Elimina">×</button>'
         + '</div>';
@@ -2501,6 +2592,8 @@
       if(t.pb != null && isFinite(pbv) && pbv > 0 && pbv < 100) nt.pb = pbv;
       if(t.pe != null && isFinite(pev) && pev > 0 && pev < 100) nt.pe = pev;
       if(mezzo === "auto" && typeof t.fatt === "boolean") nt.fatt = t.fatt;
+      var odv = Number(t.odo);
+      if(mezzo === "auto" && t.odo != null && isFinite(odv) && odv > 0 && odv < 10000000) nt.odo = odv;
       if(t.rec === true) nt.rec = true;
       trips.push(stampPrices(nt)); added.trips++;
     });
@@ -3193,7 +3286,7 @@
 
   // ---------- Versione ----------
   // Da tenere uguale al numero di CACHE_NAME in sw.js (rotaia-cache-vNN) a ogni modifica.
-  var APP_VERSION = 31, APP_DATE = "28 ottobre 2026";
+  var APP_VERSION = 32, APP_DATE = "3 novembre 2026";
   function renderVersion(){
     var el = document.getElementById("appVersion");
     var base = "Versione " + APP_VERSION + " · " + APP_DATE;
