@@ -404,7 +404,13 @@
       <button type="button" class="ghost-btn" id="syncConsumoBtn" style="display:none;"></button>
       <button type="button" class="ghost-btn" id="toggleChargeFormBtn">🔌 Registra ricarica</button>
       <form id="chargeForm" novalidate style="display:none; margin-top:12px;">
-        <div class="plug-warn" id="chargePlugWarn" style="display:none;"><b>⚠️ Spina ancora staccata?</b> Leggi il contachilometri qui sotto <b>prima</b> di attaccare il caricatore, poi salva e solo dopo collegalo: così la scarica di oggi conta per il consumo e l'autonomia. Se è già attaccato, va bene lo stesso per km e ricarica.</div>
+        <div class="plug-warn" id="chargePlugWarn" style="display:none;"><b>⚠️ Prima leggi, poi la spina</b>
+          <ol style="margin:6px 0 6px 18px; padding:0;">
+            <li>Caricatore <b>staccato</b>: tocca «Leggi contachilometri dal monopattino» qui sotto.</li>
+            <li>Lascia spuntato «Registra anche … km in monopattino» e tocca «Salva ricarica».</li>
+            <li><b>Solo ora</b> attacca la spina.</li>
+          </ol>
+          Così la scarica di oggi conta per il consumo e l'autonomia. Se la spina è già attaccata, km e ricarica si salvano lo stesso.</div>
         <label for="chargeDate">Data ricarica</label>
         <input type="date" id="chargeDate">
         <div class="field-error" id="chargeDateError"></div>
@@ -738,7 +744,7 @@
         </div>
         <div class="guide-item">
           <div class="guide-t">Quando ricarichi: prima leggi, poi la spina 🔌</div>
-          <div class="guide-d">Il modo migliore è uno solo (te lo ricorda anche l'avviso in cima a «Registra ricarica»): con il caricatore ancora staccato, in Dashboard tocca «Registra ricarica» e poi «Leggi contachilometri dal monopattino». Con un'unica lettura l'app compila il contachilometri, propone di registrare anche i km fatti dall'ultima lettura e, salvando, registra km e ricarica insieme. Solo dopo attacca la spina. Perché conviene: il consumo misurato (da cui viene l'autonomia) si calcola tra due letture fatte col caricatore staccato. Se leggi a spina già attaccata, la batteria sta già risalendo e la lettura viene scartata, e con lei tutta la scarica dall'ultima lettura: proprio la più lunga e la più utile, quella di fine ciclo. In più, la % letta a spina attaccata è un po' gonfiata dalla tensione del caricatore. Se ti dimentichi e la spina è già attaccata, nessun problema per km e ricarica: «Aggiungi» → «Leggi km dal monopattino» propone «salva i km e registra la ricarica» con un tocco; si perde solo quel pezzo di consumo misurato.</div>
+          <div class="guide-d">La sera in cui ricarichi (lo ricorda anche l'avviso in cima a «Registra ricarica»):<br>1. Con il caricatore <b>staccato</b>, in Dashboard tocca «Registra ricarica» e poi «Leggi contachilometri dal monopattino».<br>2. Controlla che «Registra anche … km in monopattino» sia spuntato e tocca «Salva ricarica»: con una sola lettura salvi i km della giornata e la ricarica.<br>3. Solo ora attacca la spina.<br>Se preferisci salvare i km da «Aggiungi» come al solito, va bene lo stesso: poi apri «Registra ricarica» e rileggi (sempre a spina staccata) o scrivi il contachilometri a mano. L'importante è che la spina arrivi per ultima. Perché conviene: il consumo misurato (da cui viene l'autonomia) si calcola tra due letture fatte col caricatore staccato. Se leggi a spina già attaccata, la batteria sta già risalendo e la lettura viene scartata, e con lei tutta la scarica dall'ultima lettura: proprio la più lunga e la più utile, quella di fine ciclo. In più, la % letta a spina attaccata è un po' gonfiata dalla tensione del caricatore. Se ti dimentichi e la spina è già attaccata, nessun problema per km e ricarica: «Aggiungi» → «Leggi km dal monopattino» propone «salva i km e registra la ricarica» con un tocco; si perde solo quel pezzo di consumo misurato.</div>
         </div>
         <div class="guide-item">
           <div class="guide-t">Autonomia e ricariche</div>
@@ -3634,7 +3640,7 @@
 
   // ---------- Versione ----------
   // Da tenere uguale al numero di CACHE_NAME in sw.js (rotaia-cache-vNN) a ogni modifica.
-  var APP_VERSION = 36, APP_DATE = "5 novembre 2026";
+  var APP_VERSION = 37, APP_DATE = "5 novembre 2026";
   function renderVersion(){
     var el = document.getElementById("appVersion");
     var base = "Versione " + APP_VERSION + " · " + APP_DATE;

@@ -1,6 +1,6 @@
 # Max G3 Saving — note di passaggio per una nuova chat
 
-Aggiornato: 5 novembre 2026 sera, versione 36 (`rotaia-cache-v36`). Leggere tutto prima di toccare il codice.
+Aggiornato: 5 novembre 2026 sera, versione 37 (`rotaia-cache-v37`). Leggere tutto prima di toccare il codice.
 
 App personale (PWA, pagina unica) che confronta gli spostamenti in monopattino (Ninebot Max G3) con quelli in auto, calcola il risparmio e legge i dati del monopattino via Bluetooth. Un solo utente, nessun server, nessun account. Interfaccia e chat in italiano.
 
@@ -17,7 +17,7 @@ App personale (PWA, pagina unica) che confronta gli spostamenti in monopattino (
 |---|---|
 | `index.html` | Tutta l'app: HTML, CSS e JS in un unico `<script>` finale (circa 3.200 righe) |
 | `g3ble.js` | Bluetooth col Max G3: cifratura, abbinamento, lettura registri, lettura diagnostica |
-| `sw.js` | Service worker. `CACHE_NAME = "rotaia-cache-v36"` |
+| `sw.js` | Service worker. `CACHE_NAME = "rotaia-cache-v37"` |
 | `test/harness.js`, `test/run.js` | Test in Node senza dipendenze, dati sintetici: `node test/run.js` |
 | `manifest.json`, `icon-*.png`, `apple-touch-icon.png` | PWA |
 | `NOTE.md` | Questo file |
@@ -65,7 +65,7 @@ Benzina 1,989 €/l (dal 26/10; prima 2,13), auto 10,8 l/100 km, elettricità 0,
 ### Lettura e ricarica: prima leggi, poi la spina (v35)
 - Domanda del 5/11. `consumoMisurato` scarta le coppie con `plugged` a un estremo: una lettura a spina attaccata fa perdere tutta la scarica dall'ultima lettura (la più utile). Dati reali: 26/10 (8,8 km) e 28/10 (13,5 km) persi, il consumo si basa su 48,9 km invece di ~71. Il 6/10 e il 19/10 l'utente aveva letto prima.
 - Flusso consigliato (Guida, voce «Quando ricarichi»): spina staccata → Dashboard «Registra ricarica» → «Leggi contachilometri» → salva (km + ricarica) → spina. La ricarica registrata dopo la lettura non invalida la coppia precedente.
-- **v36, su richiesta dell'utente** («altrimenti non me lo ricorderò»): avviso fisso `#chargePlugWarn` in cima al modulo «Registra ricarica» (visibile aprendo il modulo se c'è il Bluetooth; nascosto in modifica di una ricarica passata).
+- **v36, su richiesta dell'utente** («altrimenti non me lo ricorderò»): avviso fisso `#chargePlugWarn` in cima al modulo «Registra ricarica» (visibile aprendo il modulo se c'è il Bluetooth; nascosto in modifica di una ricarica passata). v37: avviso e Guida con i 3 passaggi numerati (leggi a spina staccata → salva ricarica con i km spuntati → spina).
 - `notaCaricatore(r)`: avviso nel messaggio della lettura (Aggiungi con km nuovi; Registra ricarica con km nuovi) quando `plugged`.
 
 ### Tempi di guida (`tempiGuida`, `renderTempiGuida`)
