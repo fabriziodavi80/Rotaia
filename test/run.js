@@ -408,5 +408,21 @@ gruppo("Tempi di guida");
   check(/^27 ott 17:39$/.test(a.t.fmtOra(new Date("2026-10-27T17:39").getTime())), "fmtOra invariata (data e ora)", a.t.fmtOra(new Date("2026-10-27T17:39").getTime()));
 })();
 
+// ---------------------------------------------------------------------------
+gruppo("Lettura prima o dopo la spina");
+(function(){
+  var prima = [read("2026-10-27T19:00", 315, 54), read("2026-10-28T18:00", 328.5, 14)];
+  var dopo = [read("2026-10-27T19:00", 315, 54), read("2026-10-28T18:00", 328.5, 15, { plugged: true })];
+  var a = avvia({ reads: prima, charges: [] }, "2026-10-28T18:05");
+  var m1 = a.t.consumoMisurato();
+  var b = avvia({ reads: dopo, charges: [] }, "2026-10-28T18:05");
+  var m2 = b.t.consumoMisurato();
+  check(m1.km === 13.5 && m2.km === 0, "letta prima della spina la scarica conta (13,5 km), dopo no", [m1.km, m2.km]);
+  check(/prima di attaccare la spina/.test(a.t.notaCaricatore({ plugged: true })) && a.t.notaCaricatore({ plugged: false }) === "", "avviso solo col caricatore collegato");
+  // ricarica registrata subito dopo una lettura a spina staccata: la coppia precedente resta valida
+  var c = avvia({ reads: prima, charges: [{ id: ts("2026-10-28T18:01") + "-chg01", date: "2026-10-28", km: 328.5 }] }, "2026-10-28T18:05");
+  check(c.t.consumoMisurato().km === 13.5, "ricarica registrata dopo la lettura: la scarica resta nel consumo");
+})();
+
 console.log("\n" + ok + " superati, " + ko + " falliti");
 process.exit(ko ? 1 : 0);

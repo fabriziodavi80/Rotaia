@@ -734,6 +734,10 @@
           <div class="guide-d">Tocca uno spostamento per modificarlo, la × per eliminarlo. Scegliendo un mese (o un mezzo) nei filtri, sopra l'elenco compaiono i totali: km in monopattino e in auto (con quelli evitabili), uso del monopattino, risparmio, spese di manutenzione del mese e netto.</div>
         </div>
         <div class="guide-item">
+          <div class="guide-t">Quando ricarichi: prima leggi, poi la spina 🔌</div>
+          <div class="guide-d">Il modo migliore è uno solo: con il caricatore ancora staccato, in Dashboard tocca «Registra ricarica» e poi «Leggi contachilometri dal monopattino». Con un'unica lettura l'app compila il contachilometri, propone di registrare anche i km fatti dall'ultima lettura e, salvando, registra km e ricarica insieme. Solo dopo attacca la spina. Perché conviene: il consumo misurato (da cui viene l'autonomia) si calcola tra due letture fatte col caricatore staccato. Se leggi a spina già attaccata, la batteria sta già risalendo e la lettura viene scartata, e con lei tutta la scarica dall'ultima lettura: proprio la più lunga e la più utile, quella di fine ciclo. In più, la % letta a spina attaccata è un po' gonfiata dalla tensione del caricatore. Se ti dimentichi e la spina è già attaccata, nessun problema per km e ricarica: «Aggiungi» → «Leggi km dal monopattino» propone «salva i km e registra la ricarica» con un tocco; si perde solo quel pezzo di consumo misurato.</div>
+        </div>
+        <div class="guide-item">
           <div class="guide-t">Autonomia e ricariche</div>
           <div class="guide-d">Registrando le ricariche (data + km totali letti sul contachilometri), l'app calcola l'autonomia reale come media dei km percorsi tra una ricarica e la successiva. Finché hai registrato una sola ricarica, viene usato il valore "dichiarato" impostato sopra. I km percorsi lo stesso giorno di una ricarica, se registrati dopo di essa, vengono contati a partire dal giorno seguente.</div>
         </div>
@@ -3268,6 +3272,11 @@
     showToast("✓ Autonomia aggiornata dal consumo misurato");
   });
 
+  // Lettura col caricatore già collegato dopo dei km: quella scarica non entra nel consumo misurato
+  function notaCaricatore(r){
+    return r && r.plugged ? " ⚠️ Col caricatore già collegato questi km non servono a misurare il consumo: la prossima volta leggi prima di attaccare la spina." : "";
+  }
+
   // ---------- Ricarica riconosciuta ----------
   function offerCharge(box, r){
     var old = box.querySelector(".ble-charge"); if(old) old.remove();
@@ -3400,7 +3409,7 @@
     document.getElementById("tripKm").value = k.km;
     clearFieldError("tripKm");
     pendingOdo = { km: k.odo.km, date: k.odo.date, ts: k.odo.ts, needDay: k.needDay };
-    setNote(k.note + (k.needDay ? " Li metto " + (k.giorno === k.oggi ? "oggi" : "ieri") + ": se sono di un altro giorno, toccalo qui sotto." : " Salva lo spostamento per confermare."));
+    setNote(k.note + (k.needDay ? " Li metto " + (k.giorno === k.oggi ? "oggi" : "ieri") + ": se sono di un altro giorno, toccalo qui sotto." : " Salva lo spostamento per confermare.") + notaCaricatore(r));
     if(k.needDay){ showDayPicker(k.refDay, k.oggi); pickDay(k.giorno); }
     else { hideDayPicker(); document.getElementById("tripDate").value = k.oggi; }
   });
@@ -3471,7 +3480,7 @@
     if(editingChargeId){ setNote(base); return; }
     var k = kmDaLettura(r);
     if(k.tipo !== "nuovi"){ setNote(base + (k.tipo === "zero" ? "" : " " + k.note)); return; }
-    setNote(base);
+    setNote(base + notaCaricatore(r));
     pendingChargeTrip = { km: k.km, date: k.giorno, odo: k.odo };
     var w = document.getElementById("chargeTripBox");
     var start = k.refDay > addDaysStr(k.oggi, -6) ? k.refDay : addDaysStr(k.oggi, -6), opts = "";
@@ -3620,7 +3629,7 @@
 
   // ---------- Versione ----------
   // Da tenere uguale al numero di CACHE_NAME in sw.js (rotaia-cache-vNN) a ogni modifica.
-  var APP_VERSION = 34, APP_DATE = "5 novembre 2026";
+  var APP_VERSION = 35, APP_DATE = "5 novembre 2026";
   function renderVersion(){
     var el = document.getElementById("appVersion");
     var base = "Versione " + APP_VERSION + " · " + APP_DATE;

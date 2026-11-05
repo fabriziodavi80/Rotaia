@@ -1,6 +1,6 @@
 # Max G3 Saving — note di passaggio per una nuova chat
 
-Aggiornato: 5 novembre 2026, versione 34 (`rotaia-cache-v34`). Leggere tutto prima di toccare il codice.
+Aggiornato: 5 novembre 2026 sera, versione 35 (`rotaia-cache-v35`). Leggere tutto prima di toccare il codice.
 
 App personale (PWA, pagina unica) che confronta gli spostamenti in monopattino (Ninebot Max G3) con quelli in auto, calcola il risparmio e legge i dati del monopattino via Bluetooth. Un solo utente, nessun server, nessun account. Interfaccia e chat in italiano.
 
@@ -17,7 +17,7 @@ App personale (PWA, pagina unica) che confronta gli spostamenti in monopattino (
 |---|---|
 | `index.html` | Tutta l'app: HTML, CSS e JS in un unico `<script>` finale (circa 3.200 righe) |
 | `g3ble.js` | Bluetooth col Max G3: cifratura, abbinamento, lettura registri, lettura diagnostica |
-| `sw.js` | Service worker. `CACHE_NAME = "rotaia-cache-v34"` |
+| `sw.js` | Service worker. `CACHE_NAME = "rotaia-cache-v35"` |
 | `test/harness.js`, `test/run.js` | Test in Node senza dipendenze, dati sintetici: `node test/run.js` |
 | `manifest.json`, `icon-*.png`, `apple-touch-icon.png` | PWA |
 | `NOTE.md` | Questo file |
@@ -61,6 +61,11 @@ Benzina 1,989 €/l (dal 26/10; prima 2,13), auto 10,8 l/100 km, elettricità 0,
 - **Prezzo benzina automatico:** al salvataggio, il €/l dell'ultimo rifornimento per data diventa `params.prezzoBenzina` (vale per i prossimi spostamenti; i passati hanno `pb` bloccato). Decisione dell'utente (3/11).
 - **Consumo da pieno a pieno:** ordinati per contachilometri; dal primo pieno, i litri dei rifornimenti successivi fino al pieno seguente / km tra i due pieni. Intervalli fuori 3-30 l/100 km scartati. Con ≥ 200 km misurati e scarto ≥ 0,2 dal parametro compare «Usa il consumo misurato»: **non automatico**, perché il consumo auto si applica anche al passato.
 - Validazioni: litri ≤ 150, € ≤ 500, prezzo 0,50-5 €/l, contachilometri coerente con la data rispetto agli altri rifornimenti. Nota sotto il modulo: prezzo al litro e km dall'ultimo contachilometri noto (viaggi o rifornimenti). In Parametri, nota sotto il consumo auto. Il contachilometri dei rifornimenti **non** fa da riferimento per i km dei viaggi (si rifornisce spesso a metà viaggio).
+
+### Lettura e ricarica: prima leggi, poi la spina (v35)
+- Domanda del 5/11. `consumoMisurato` scarta le coppie con `plugged` a un estremo: una lettura a spina attaccata fa perdere tutta la scarica dall'ultima lettura (la più utile). Dati reali: 26/10 (8,8 km) e 28/10 (13,5 km) persi, il consumo si basa su 48,9 km invece di ~71. Il 6/10 e il 19/10 l'utente aveva letto prima.
+- Flusso consigliato (Guida, voce «Quando ricarichi»): spina staccata → Dashboard «Registra ricarica» → «Leggi contachilometri» → salva (km + ricarica) → spina. La ricarica registrata dopo la lettura non invalida la coppia precedente.
+- `notaCaricatore(r)`: avviso nel messaggio della lettura (Aggiungi con km nuovi; Registra ricarica con km nuovi) quando `plugged`.
 
 ### Tempi di guida (`tempiGuida`, `renderTempiGuida`)
 - Richiesta del 5/11: tempo di ogni tragitto (4 al giorno, casa-lavoro). **Il monopattino non registra i singoli viaggi né l'ora**: solo contatori cumulativi. L'utente **non se la sente di leggere a ogni arrivo**: niente pulsante «Fine tragitto»; si usa quello che c'è.
@@ -136,7 +141,7 @@ VCU `0x16`, BMS `0x07`. Un blocco da 16 byte letto da `N` copre le parole `N`..`
 ### Metodo di lavoro
 1. L'utente segnala un problema o chiede proposte; si propone in breve, lui risponde «Procedi» o «Sì».
 2. Si implementa, si controlla la sintassi (`node --check` sullo script estratto), si eseguono i test, si fa commit e push, si risponde in italiano in modo breve, con i numeri reali quando servono.
-3. **Test:** `node test/run.js` (106 controlli, dati sintetici, fuso Europe/Rome). `test/harness.js` estrae l'ultimo `<script>` di `index.html`, esporta tutte le funzioni di primo livello in `__t`, lo esegue con `vm` con DOM, `localStorage`, `G3BLE` e **orologio simulati** (`load({storage, now, lettura})`, `setNow`). Per un caso reale: caricare il backup JSON dell'utente come `storage` (chiavi `rotaia_*`) senza salvarlo nel repository. Quando si tocca la batteria, coprire: ricarica registrata prima/dopo la lettura, lettura col caricatore, uscita dopo la ricarica, nessuna ricarica. Aggiungere un test per ogni novità.
+3. **Test:** `node test/run.js` (109 controlli, dati sintetici, fuso Europe/Rome). `test/harness.js` estrae l'ultimo `<script>` di `index.html`, esporta tutte le funzioni di primo livello in `__t`, lo esegue con `vm` con DOM, `localStorage`, `G3BLE` e **orologio simulati** (`load({storage, now, lettura})`, `setNow`). Per un caso reale: caricare il backup JSON dell'utente come `storage` (chiavi `rotaia_*`) senza salvarlo nel repository. Quando si tocca la batteria, coprire: ricarica registrata prima/dopo la lettura, lettura col caricatore, uscita dopo la ricarica, nessuna ricarica. Aggiungere un test per ogni novità.
 4. Prima del push: `git fetch origin main && git rebase origin/main` (più sessioni possono lavorare sul repository).
 5. Commit con le righe `Co-Authored-By` e `Claude-Session` indicate dalla sessione corrente.
 
