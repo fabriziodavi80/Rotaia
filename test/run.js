@@ -424,5 +424,18 @@ gruppo("Lettura prima o dopo la spina");
   check(c.t.consumoMisurato().km === 13.5, "ricarica registrata dopo la lettura: la scarica resta nel consumo");
 })();
 
+// ---------------------------------------------------------------------------
+gruppo("Avviso in Registra ricarica");
+(function(){
+  var a = avvia({}, "2026-10-28T18:00");
+  a.el("toggleChargeFormBtn").click();
+  check(a.el("chargeForm").style.display === "block" && a.el("chargePlugWarn").style.display === "block", "aprendo «Registra ricarica» l'avviso è visibile");
+  a.t.startEditCharge(a.t.charges[0].id);
+  check(a.el("chargePlugWarn").style.display === "none", "modificando una ricarica passata l'avviso sparisce");
+  var b = load({ storage: dati(), now: new Date("2026-10-28T18:00").getTime(), g3: { supported: function(){ return false; }, getKey: function(){ return null; }, log: function(){ return ""; } } });
+  b.el("toggleChargeFormBtn").click();
+  check(b.el("chargePlugWarn").style.display === "none", "senza Bluetooth (es. iPhone) l'avviso non compare");
+})();
+
 console.log("\n" + ok + " superati, " + ko + " falliti");
 process.exit(ko ? 1 : 0);

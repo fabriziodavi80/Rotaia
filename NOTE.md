@@ -1,6 +1,6 @@
 # Max G3 Saving — note di passaggio per una nuova chat
 
-Aggiornato: 5 novembre 2026 sera, versione 35 (`rotaia-cache-v35`). Leggere tutto prima di toccare il codice.
+Aggiornato: 5 novembre 2026 sera, versione 36 (`rotaia-cache-v36`). Leggere tutto prima di toccare il codice.
 
 App personale (PWA, pagina unica) che confronta gli spostamenti in monopattino (Ninebot Max G3) con quelli in auto, calcola il risparmio e legge i dati del monopattino via Bluetooth. Un solo utente, nessun server, nessun account. Interfaccia e chat in italiano.
 
@@ -17,7 +17,7 @@ App personale (PWA, pagina unica) che confronta gli spostamenti in monopattino (
 |---|---|
 | `index.html` | Tutta l'app: HTML, CSS e JS in un unico `<script>` finale (circa 3.200 righe) |
 | `g3ble.js` | Bluetooth col Max G3: cifratura, abbinamento, lettura registri, lettura diagnostica |
-| `sw.js` | Service worker. `CACHE_NAME = "rotaia-cache-v35"` |
+| `sw.js` | Service worker. `CACHE_NAME = "rotaia-cache-v36"` |
 | `test/harness.js`, `test/run.js` | Test in Node senza dipendenze, dati sintetici: `node test/run.js` |
 | `manifest.json`, `icon-*.png`, `apple-touch-icon.png` | PWA |
 | `NOTE.md` | Questo file |
@@ -65,6 +65,7 @@ Benzina 1,989 €/l (dal 26/10; prima 2,13), auto 10,8 l/100 km, elettricità 0,
 ### Lettura e ricarica: prima leggi, poi la spina (v35)
 - Domanda del 5/11. `consumoMisurato` scarta le coppie con `plugged` a un estremo: una lettura a spina attaccata fa perdere tutta la scarica dall'ultima lettura (la più utile). Dati reali: 26/10 (8,8 km) e 28/10 (13,5 km) persi, il consumo si basa su 48,9 km invece di ~71. Il 6/10 e il 19/10 l'utente aveva letto prima.
 - Flusso consigliato (Guida, voce «Quando ricarichi»): spina staccata → Dashboard «Registra ricarica» → «Leggi contachilometri» → salva (km + ricarica) → spina. La ricarica registrata dopo la lettura non invalida la coppia precedente.
+- **v36, su richiesta dell'utente** («altrimenti non me lo ricorderò»): avviso fisso `#chargePlugWarn` in cima al modulo «Registra ricarica» (visibile aprendo il modulo se c'è il Bluetooth; nascosto in modifica di una ricarica passata).
 - `notaCaricatore(r)`: avviso nel messaggio della lettura (Aggiungi con km nuovi; Registra ricarica con km nuovi) quando `plugged`.
 
 ### Tempi di guida (`tempiGuida`, `renderTempiGuida`)
@@ -141,7 +142,7 @@ VCU `0x16`, BMS `0x07`. Un blocco da 16 byte letto da `N` copre le parole `N`..`
 ### Metodo di lavoro
 1. L'utente segnala un problema o chiede proposte; si propone in breve, lui risponde «Procedi» o «Sì».
 2. Si implementa, si controlla la sintassi (`node --check` sullo script estratto), si eseguono i test, si fa commit e push, si risponde in italiano in modo breve, con i numeri reali quando servono.
-3. **Test:** `node test/run.js` (109 controlli, dati sintetici, fuso Europe/Rome). `test/harness.js` estrae l'ultimo `<script>` di `index.html`, esporta tutte le funzioni di primo livello in `__t`, lo esegue con `vm` con DOM, `localStorage`, `G3BLE` e **orologio simulati** (`load({storage, now, lettura})`, `setNow`). Per un caso reale: caricare il backup JSON dell'utente come `storage` (chiavi `rotaia_*`) senza salvarlo nel repository. Quando si tocca la batteria, coprire: ricarica registrata prima/dopo la lettura, lettura col caricatore, uscita dopo la ricarica, nessuna ricarica. Aggiungere un test per ogni novità.
+3. **Test:** `node test/run.js` (112 controlli, dati sintetici, fuso Europe/Rome). `test/harness.js` estrae l'ultimo `<script>` di `index.html`, esporta tutte le funzioni di primo livello in `__t`, lo esegue con `vm` con DOM, `localStorage`, `G3BLE` e **orologio simulati** (`load({storage, now, lettura})`, `setNow`). Per un caso reale: caricare il backup JSON dell'utente come `storage` (chiavi `rotaia_*`) senza salvarlo nel repository. Quando si tocca la batteria, coprire: ricarica registrata prima/dopo la lettura, lettura col caricatore, uscita dopo la ricarica, nessuna ricarica. Aggiungere un test per ogni novità.
 4. Prima del push: `git fetch origin main && git rebase origin/main` (più sessioni possono lavorare sul repository).
 5. Commit con le righe `Co-Authored-By` e `Claude-Session` indicate dalla sessione corrente.
 
