@@ -361,6 +361,7 @@ const G3BLE = (() => {
       if ((d = await opt(BOARD_VCU, 0x1F, 2))) out.plugged = !!((d[0] >> 6) & 1);
       if ((d = await opt(BOARD_VCU, 0x1C, 2))) out.charging = !!((d[0] >> 2) & 1);
       if ((d = await opt(BOARD_VCU, 0x66, 4))) out.rideS = u32(d); // secondi totali di guida
+      if ((d = await opt(BOARD_VCU, 0x64, 4))) out.onS = u32(d); // secondi totali di accensione
       // Scheda batteria: l'indirizzo dipende dal modello, si prova una breve lista e si ricorda quello giusto.
       const known = parseInt(st.get(K_BMS) || "", 16);
       const boards = isFinite(known) ? [known, ...BMS_BOARDS.filter(b => b !== known)] : BMS_BOARDS;

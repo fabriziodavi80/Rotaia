@@ -361,5 +361,52 @@ gruppo("Rifornimenti auto");
   check(JSON.parse(b.store.rotaia_fuel_v1).length === 3, "rifornimento non valido scartato");
 })();
 
+// ---------------------------------------------------------------------------
+gruppo("Tempi di guida");
+(function(){
+  function rd(s, km, rideS, onS){ var r = read(s, km, 50, { rideS: rideS }); if(onS !== undefined) r.onS = onS; return r; }
+  var reads = [
+    rd("2026-10-26T19:00", 300, 50000, 70000),
+    rd("2026-10-27T19:00", 315, 52250, 72950),          // 15 km in 37,5 min
+    rd("2026-10-28T08:40", 318.5, 52790, 73600),        // mattina, stesso giorno: tratto del 28
+    rd("2026-10-28T19:00", 330, 54510),                 // senza onS: niente tempo da acceso
+    rd("2026-11-02T18:00", 340, 56010, 76000)           // più giorni
+  ];
+  // dopo la lettura delle 8:40 i km sono stati salvati su oggi (id dello spostamento = istante del salvataggio)
+  var arrivo = trip("2026-10-28", "monopattino", 3.5); arrivo.id = ts("2026-10-28T08:41") + "-arr01";
+  var tr = dati().rotaia_trips_v1.concat([arrivo, trip("2026-10-28", "monopattino", 11.5), trip("2026-11-02", "monopattino", 10)]);
+  var a = avvia({ reads: reads, trips: tr }, "2026-11-03T12:00"), t = a.t;
+  var tg = t.tempiGuida();
+  var g27 = tg.giorni.filter(function(g){ return g.giorno === "2026-10-27"; })[0];
+  check(g27 && g27.km === 15 && g27.s === 2250 && g27.on === 2950 && g27.onOk, "27/10: 15 km in 37,5 min, acceso 49 min", g27);
+  var g28 = tg.giorni.filter(function(g){ return g.giorno === "2026-10-28"; })[0];
+  check(g28 && g28.tratti.length === 2 && g28.km === 15 && g28.s === 540 + 1720, "28/10: due tratti (lettura del mattino e della sera)", g28);
+  check(g28 && !g28.onOk, "28/10: tempo da acceso non disponibile (lettura senza contatore)");
+  var g2 = tg.giorni[0];
+  check(g2.giorno === "2026-11-02" && g2.dal === "2026-11-02", "più giorni senza letture: ristretto al giorno con km registrati", g2);
+  check(tg.totS === 56010 && tg.totKm === 340, "totali dall'ultima lettura");
+  check(a.el("rideCard").style.display === "block" && /2 min 45 s/.test(a.el("ridePerKm").textContent), "scheda visibile, tempo al km", a.el("ridePerKm").textContent);
+  var html = a.el("rideList").innerHTML;
+  check(/08:40 → 19:00/.test(html) && /fino alle 08:40/.test(html), "tratti con l'ora delle letture", html.slice(0, 300));
+  check(/acceso 49 min/.test(html), "tempo da acceso mostrato");
+  // lettura del mattino con km salvati su ieri (promemoria del mattino): tempo su ieri
+  var ieri = trip("2026-10-27", "monopattino", 5); ieri.id = ts("2026-10-28T07:31") + "-ier01";
+  a = avvia({ reads: [rd("2026-10-27T13:00", 315, 52250), rd("2026-10-28T07:30", 320, 52950)], trips: [ieri] }, "2026-10-28T12:00");
+  check(a.t.tempiGuida().giorni[0].giorno === "2026-10-27", "km del mattino salvati su ieri: tempo su ieri");
+  // lettura del mattino senza spostamento salvato: regola del mattino (giorno prima)
+  a = avvia({ reads: [rd("2026-10-27T19:00", 315, 52250), rd("2026-10-28T07:30", 320, 52950)] }, "2026-10-28T12:00");
+  check(a.t.tempiGuida().giorni[0].giorno === "2026-10-27", "lettura del mattino: tempo sul giorno prima");
+  // contatore azzerato o lettura incoerente: scartati
+  a = avvia({ reads: [rd("2026-10-27T19:00", 315, 52250), rd("2026-10-28T19:00", 320, 100)] }, "2026-10-28T20:00");
+  check(a.t.tempiGuida().giorni.length === 0, "contatore che scende: tratto scartato");
+  a = avvia({ reads: [rd("2026-10-27T19:00", 315, 52250), rd("2026-10-28T19:00", 335, 52300)] }, "2026-10-28T20:00");
+  check(a.t.tempiGuida().giorni.length === 0, "velocità impossibile: tratto scartato");
+  // nessuna lettura con il contatore: scheda nascosta
+  a = avvia({}, "2026-10-28T20:00");
+  check(a.el("rideCard").style.display === "none", "senza contatore di guida la scheda è nascosta");
+  // la funzione dell'ora con data resta quella di prima
+  check(/^27 ott 17:39$/.test(a.t.fmtOra(new Date("2026-10-27T17:39").getTime())), "fmtOra invariata (data e ora)", a.t.fmtOra(new Date("2026-10-27T17:39").getTime()));
+})();
+
 console.log("\n" + ok + " superati, " + ko + " falliti");
 process.exit(ko ? 1 : 0);

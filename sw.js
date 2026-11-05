@@ -1,4 +1,4 @@
-var CACHE_NAME = "rotaia-cache-v33";
+var CACHE_NAME = "rotaia-cache-v34";
 var CORE_ASSETS = [
   "./",
   "./index.html",

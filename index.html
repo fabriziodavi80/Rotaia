@@ -444,6 +444,17 @@
       <button type="button" class="ghost-btn" id="shareChartBtn" style="display:none;">📤 Condividi il grafico</button>
     </div>
 
+    <details class="card" id="rideCard">
+      <summary>Tempi di guida</summary>
+      <div class="details-body">
+        <div class="be-detail"><span>Tempo totale di guida</span><span class="mono" id="rideTot">—</span></div>
+        <div class="be-detail"><span>Velocità media</span><span class="mono" id="rideAvg">—</span></div>
+        <div class="be-detail"><span>Tempo medio al km</span><span class="mono" id="ridePerKm">—</span></div>
+        <div class="cmp-list" id="rideList"></div>
+        <div class="param-note" id="rideNote">Il monopattino non registra i singoli viaggi né l'ora: tiene solo un contatore dei secondi di guida. Il tempo di ogni giorno è la differenza di quel contatore tra due letture. Se in un giorno leggi più di una volta (ad esempio appena arrivato), quel giorno viene diviso in tratti, ognuno con il suo tempo.</div>
+      </div>
+    </details>
+
     <details class="card" id="cmpCard">
       <summary>Confronto tra mesi e stagioni</summary>
       <div class="details-body">
@@ -741,6 +752,10 @@
         <div class="guide-item">
           <div class="guide-t">Rifornimenti auto ⛽</div>
           <div class="guide-d">In Aggiungi, «Registra rifornimento»: contachilometri, litri e importo dello scontrino. Il prezzo al litro dell'ultimo rifornimento diventa da solo il prezzo della benzina per i prossimi spostamenti (quelli già registrati restano coi loro prezzi). Il consumo reale si misura «da pieno a pieno»: fai il pieno fino allo scatto e lascia la spunta «Pieno»; al pieno successivo l'app divide i litri messi per i km percorsi (i rifornimenti parziali in mezzo vengono sommati). Quando il consumo misurato copre almeno 200 km e differisce da quello nei parametri, compare il pulsante per usarlo: il consumo vale anche per gli spostamenti passati, per questo non cambia da solo. I rifornimenti sono nel backup.</div>
+        </div>
+        <div class="guide-item">
+          <div class="guide-t">Tempi di guida ⏱️</div>
+          <div class="guide-d">In Dashboard, «Tempi di guida»: tempo totale e velocità media dal contatore del monopattino e, per ogni giorno, km, minuti in movimento, velocità media e tempo al km. Il monopattino non registra i singoli viaggi né l'ora, quindi con una sola lettura la sera vedi il totale della giornata. Se in un giorno leggi più volte (per esempio appena arrivato, prima di spegnere), quel giorno viene diviso in tratti con l'ora di ciascuna lettura. Se tra due letture passano più giorni, il tempo è sommato e indicato come «più giorni». Dalle letture della versione 34 compare anche il tempo da acceso, che comprende soste e semafori.</div>
         </div>
         <div class="guide-item">
           <div class="guide-t">Abbinamento e SHU 🔑</div>
@@ -1240,6 +1255,7 @@
     renderCumulativeChart();
     renderWeekdayChart();
     renderConfronto();
+    renderTempiGuida();
     renderBattery();
   }
 
@@ -1438,6 +1454,89 @@
     svg += '<circle cx="'+lastX.toFixed(1)+'" cy="'+lastY.toFixed(1)+'" r="3.4" fill="var(--teal)"></circle>';
     svg += '</svg>';
     wrap.innerHTML = svg;
+  }
+
+  // ---------- Tempi di guida ----------
+  // Tra due letture consecutive: km e secondi di guida (VCU 0x66) percorsi, più i secondi di
+  // accensione (0x64) quando entrambe li hanno. Ogni tratto va sul giorno in cui sono stati fatti
+  // i km (stessa regola di giornoProbabile: una lettura del mattino chiude il giorno prima).
+  function tempiGuida(){
+    var rs = loadJSON(READS_KEY, []).filter(function(r){
+      return typeof r.ts === "number" && typeof r.km === "number" && typeof r.rideS === "number";
+    }).sort(function(a,b){ return a.ts - b.ts; });
+    var tratti = [];
+    for(var i=1;i<rs.length;i++){
+      var a = rs[i-1], b = rs[i];
+      var dk = Math.round((b.km - a.km) * 10) / 10, ds = b.rideS - a.rideS;
+      if(dk < 0.1 || ds <= 0) continue;           // fermo, oppure contatore azzerato
+      if(dk / (ds / 3600) > 45) continue;          // velocità impossibile: lettura incoerente
+      var dA = todayFromTs(a.ts), dB = todayFromTs(b.ts), oraB = new Date(b.ts).getHours();
+      // Se dopo la lettura hai salvato i km, vale il giorno che hai scelto tu; altrimenti la regola del mattino
+      var giorno = giornoDaSpostamento(b.ts) || giornoProbabile(dA, dB, oraB);
+      var dal = new Date(a.ts).getHours() >= 12 ? addDaysStr(dA, 1) : dA;
+      if(dal > giorno) dal = giorno;
+      // Più giorni tra le due letture: si restringe ai giorni con km in monopattino registrati
+      if(dal < giorno){
+        var usati = {};
+        trips.forEach(function(t){ if(t.mezzo === "monopattino" && !isRec(t) && t.date >= dal && t.date <= giorno) usati[t.date] = true; });
+        var gg = Object.keys(usati).sort();
+        if(gg.length){ dal = gg[0]; giorno = gg[gg.length - 1]; }
+      }
+      var on = (typeof a.onS === "number" && typeof b.onS === "number" && b.onS >= a.onS) ? b.onS - a.onS : null;
+      tratti.push({ giorno: giorno, dal: dal, tsA: a.ts, tsB: b.ts, stessoGiorno: dA === dB, km: dk, s: ds, on: on });
+    }
+    var giorni = {};
+    tratti.forEach(function(t){
+      var g = giorni[t.giorno] || (giorni[t.giorno] = { giorno: t.giorno, dal: t.dal, km: 0, s: 0, on: 0, onOk: true, tratti: [] });
+      g.km += t.km; g.s += t.s;
+      if(t.on === null) g.onOk = false; else g.on += t.on;
+      if(t.dal < g.dal) g.dal = t.dal;
+      g.tratti.push(t);
+    });
+    var list = Object.keys(giorni).sort().reverse().map(function(k){ var g = giorni[k]; g.km = Math.round(g.km * 10) / 10; return g; });
+    var last = rs.length ? rs[rs.length - 1] : null;
+    return { giorni: list, totS: last ? last.rideS : null, totKm: last ? last.km : null };
+  }
+  // Spostamento in monopattino salvato subito dopo una lettura (entro 30 minuti): il suo giorno
+  function giornoDaSpostamento(ts){
+    var best = null, bd = Infinity;
+    trips.forEach(function(t){
+      if(t.mezzo !== "monopattino" || isRec(t)) return;
+      var d = idTs(t.id) - ts;
+      if(d >= -60000 && d <= 30 * 60000 && Math.abs(d) < bd){ bd = Math.abs(d); best = t; }
+    });
+    return best ? best.date : null;
+  }
+  function fmtDurata(s){
+    s = Math.round(s);
+    var h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60), sec = s % 60;
+    if(h) return h + " h " + String(m).padStart(2, "0") + " min";
+    return m + " min" + (m < 10 ? " " + String(sec).padStart(2, "0") + " s" : "");
+  }
+  function fmtVel(km, s){ return (km / (s / 3600)).toFixed(1).replace(".", ",") + " km/h"; }
+  function fmtOraSola(ts){ var d = new Date(ts); return String(d.getHours()).padStart(2,"0") + ":" + String(d.getMinutes()).padStart(2,"0"); }
+  function renderTempiGuida(){
+    var tg = tempiGuida(), card = document.getElementById("rideCard");
+    card.style.display = tg.totS ? "block" : "none";
+    if(!tg.totS) return;
+    document.getElementById("rideTot").textContent = fmtDurata(tg.totS) + " · " + fmtKm(tg.totKm);
+    document.getElementById("rideAvg").textContent = tg.totKm > 0 ? fmtVel(tg.totKm, tg.totS) : "—";
+    document.getElementById("ridePerKm").textContent = tg.totKm > 0 ? fmtDurata(tg.totS / tg.totKm).replace(/^0 min /, "") : "—";
+    var list = document.getElementById("rideList");
+    if(!tg.giorni.length){ list.innerHTML = '<div class="chart-empty">Dalla prossima lettura dopo un giro compaiono i tempi di ogni giorno.</div>'; return; }
+    list.innerHTML = tg.giorni.slice(0, 20).map(function(g){
+      var nome = g.dal < g.giorno ? fmtGiorno(g.dal) + " – " + fmtGiorno(g.giorno)
+        : new Date(g.giorno + "T00:00:00").toLocaleDateString("it-IT", { weekday: "short", day: "numeric", month: "short" });
+      var sub = fmtKm(g.km) + " · " + fmtVel(g.km, g.s) + " · " + fmtDurata(g.s / g.km).replace(/^0 min /, "") + " al km"
+        + (g.onOk && g.on > g.s ? " · acceso " + fmtDurata(g.on) : "");
+      var extra = g.tratti.length > 1 ? g.tratti.map(function(t){
+        var quando = t.stessoGiorno ? fmtOraSola(t.tsA) + " → " + fmtOraSola(t.tsB) : "fino alle " + fmtOraSola(t.tsB);
+        return '<div class="cmp-sub">• ' + quando + ": " + fmtKm(t.km) + " in " + fmtDurata(t.s) + " (" + fmtVel(t.km, t.s) + ")"
+          + (t.on !== null && t.on > t.s ? ", acceso " + fmtDurata(t.on) : "") + '</div>';
+      }).join("") : "";
+      return '<div class="cmp-row"><div class="cmp-top"><span class="cmp-name">' + escHtml(nome) + (g.dal < g.giorno ? " · più giorni" : "") + '</span>'
+        + '<span class="cmp-net mono">' + fmtDurata(g.s) + '</span></div><div class="cmp-sub">' + sub + '</div>' + extra + '</div>';
+    }).join("");
   }
 
   // ---------- Confronto tra mesi e stagioni ----------
@@ -2858,7 +2957,7 @@
       var rec = { ts:r.ts, date:normalizeDate(r.date) || todayStr(), km:r.km, soc:numOrNull(r.soc), mAh:numOrNull(r.mAh),
         fullmAh:numOrNull(r.fullmAh), volt:numOrNull(r.volt), plugged: r.plugged === true ? true : r.plugged === false ? false : null };
       // campi facoltativi (salute, cicli, ore di guida, storia): solo se numeri validi
-      ["soh","cycA","cycB","rideS","cap5A","cap8A","cellD","tMax"].forEach(function(k){
+      ["soh","cycA","cycB","rideS","onS","cap5A","cap8A","cellD","tMax"].forEach(function(k){
         if(typeof r[k] === "number" && isFinite(r[k])) rec[k] = r[k];
       });
       reads.push(rec);
@@ -3068,6 +3167,7 @@
     if(typeof r.cycA === "number") rec.cycA = r.cycA;
     if(typeof r.cycB === "number") rec.cycB = r.cycB;
     if(typeof r.rideS === "number") rec.rideS = r.rideS;
+    if(typeof r.onS === "number") rec.onS = r.onS;
     if(typeof r.cap5A === "number") rec.cap5A = r.cap5A;
     if(typeof r.cap8A === "number") rec.cap8A = r.cap8A;
     // Per la storia di "Stato batteria": scarto tra le celle e temperatura massima
@@ -3520,7 +3620,7 @@
 
   // ---------- Versione ----------
   // Da tenere uguale al numero di CACHE_NAME in sw.js (rotaia-cache-vNN) a ogni modifica.
-  var APP_VERSION = 33, APP_DATE = "3 novembre 2026";
+  var APP_VERSION = 34, APP_DATE = "5 novembre 2026";
   function renderVersion(){
     var el = document.getElementById("appVersion");
     var base = "Versione " + APP_VERSION + " · " + APP_DATE;
