@@ -752,7 +752,7 @@
         </div>
         <div class="guide-item">
           <div class="guide-t">Lettura dal monopattino 🛴</div>
-          <div class="guide-d">Con il monopattino acceso e SHU chiusa, «Leggi km dal monopattino» legge il contachilometri e compila i km fatti dall'ultima lettura. La prima volta salva solo il punto di partenza, perché non c'è ancora un riferimento precedente con cui calcolare la differenza: se hai già percorso km oggi prima di questa prima lettura, il campo km resta vuoto e vanno inseriti a mano (il contachilometri letto li include già). Se dopo l'ultima lettura hai registrato spostamenti in monopattino a mano, l'app li toglie da sola dal valore proposto, così non vengono contati due volte (vale dalla seconda lettura confermata in poi). Il monopattino non registra in che giorno hai guidato: se l'ultima lettura è di un giorno precedente, l'app propone il giorno più probabile (la mattina «Ieri», dal pomeriggio «Oggi») e mostra i pulsanti Oggi, Ieri, … per cambiarlo prima di salvare. Se leggi ogni sera, la data è sempre quella giusta. In «Registra ricarica» lo stesso pulsante compila il contachilometri e, se hai fatto km dall'ultima lettura, propone «Registra anche … in monopattino» (con il giorno): salvando la ricarica si salvano anche quei km. Se invece leggi da «Aggiungi» con il caricatore collegato, compare il pulsante «salva i km e registra la ricarica»: un tocco registra entrambi (la ricarica si corregge dallo Storico ricariche). Una lettura fatta col caricatore collegato non vale come carica attuale, perché la % sta salendo: la barra riparte dal 100% appena la ricarica è registrata. La prima lettura richiede l'abbinamento: premi una volta il pulsante di accensione quando l'app lo chiede.</div>
+          <div class="guide-d">Con il monopattino acceso e SHU chiusa, «Leggi km dal monopattino» legge il contachilometri e compila i km fatti dall'ultima lettura. La prima volta salva solo il punto di partenza, perché non c'è ancora un riferimento precedente con cui calcolare la differenza: se hai già percorso km oggi prima di questa prima lettura, il campo km resta vuoto e vanno inseriti a mano (il contachilometri letto li include già). Se dopo l'ultima lettura hai registrato spostamenti in monopattino a mano, l'app li toglie da sola dal valore proposto, così non vengono contati due volte (vale dalla seconda lettura confermata in poi). Il monopattino non registra in che giorno hai guidato: se l'ultima lettura è di un giorno precedente, l'app propone il giorno più probabile (la mattina «Ieri», se ieri non avevi letto dopo mezzogiorno; altrimenti, e dal pomeriggio, «Oggi») e mostra i pulsanti Oggi, Ieri, … per cambiarlo prima di salvare. Se leggi ogni sera, la data è sempre quella giusta. In «Registra ricarica» lo stesso pulsante compila il contachilometri e, se hai fatto km dall'ultima lettura, propone «Registra anche … in monopattino» (con il giorno): salvando la ricarica si salvano anche quei km. Se invece leggi da «Aggiungi» con il caricatore collegato, compare il pulsante «salva i km e registra la ricarica»: un tocco registra entrambi (la ricarica si corregge dallo Storico ricariche). Una lettura fatta col caricatore collegato non vale come carica attuale, perché la % sta salendo: la barra riparte dal 100% appena la ricarica è registrata. La prima lettura richiede l'abbinamento: premi una volta il pulsante di accensione quando l'app lo chiede.</div>
         </div>
         <div class="guide-item">
           <div class="guide-t">Promemoria lettura 🔔</div>
@@ -1485,7 +1485,7 @@
       if(dk / (ds / 3600) > 45) continue;          // velocità impossibile: lettura incoerente
       var dA = todayFromTs(a.ts), dB = todayFromTs(b.ts), oraB = new Date(b.ts).getHours();
       // Se dopo la lettura hai salvato i km, vale il giorno che hai scelto tu; altrimenti la regola del mattino
-      var giorno = giornoDaSpostamento(b.ts) || giornoProbabile(dA, dB, oraB);
+      var giorno = giornoDaSpostamento(b.ts) || giornoProbabile(dA, dB, oraB, a.ts);
       var dal = new Date(a.ts).getHours() >= 12 ? addDaysStr(dA, 1) : dA;
       if(dal > giorno) dal = giorno;
       // Più giorni tra le due letture: si restringe ai giorni con km in monopattino registrati
@@ -3402,7 +3402,7 @@
     // quindi si propone il giorno più probabile invece di usare oggi in silenzio.
     var needDay = ref.date < oggi;
     return { tipo: "nuovi", km: proposto, delta: delta, manuali: manuali, refDate: refDate, refDay: ref.date, oggi: oggi,
-      needDay: needDay, giorno: needDay ? giornoProbabile(ref.date, oggi, new Date().getHours()) : oggi,
+      needDay: needDay, giorno: needDay ? giornoProbabile(ref.date, oggi, new Date().getHours(), ref.ts) : oggi,
       odo: { km: r.km, date: oggi, ts: now },
       note: "Contachilometri " + fmtKm(r.km) + ": +" + fmtKm(delta) + " dalla lettura del " + refDate
         + (manuali > 0 ? ", di cui " + fmtKm(manuali) + " già registrati a mano: propongo " + fmtKm(proposto) + "." : ".") };
@@ -3427,9 +3427,14 @@
 
   // Giorno proposto per i km letti quando l'ultima lettura è di un giorno precedente:
   // la mattina (prima delle 12) è più probabile che siano di ieri, dal pomeriggio di oggi.
-  function giornoProbabile(refDate, oggi, ora){
+  // La mattina i km sono probabilmente di ieri (lettura serale dimenticata), a meno che ieri
+  // non ci sia già stata una lettura dopo mezzogiorno: quella ha chiuso la giornata, quindi i km
+  // letti stamattina sono di oggi (es. lettura all'arrivo al lavoro).
+  function giornoProbabile(refDate, oggi, ora, refTs){
     var ieri = addDaysStr(oggi, -1);
-    return (ora < 12 && refDate <= ieri) ? ieri : oggi;
+    if(ora >= 12 || refDate > ieri) return oggi;
+    if(refDate === ieri && typeof refTs === "number" && new Date(refTs).getHours() >= 12) return oggi;
+    return ieri;
   }
   // Scelta del giorno dei km letti: dal giorno dell'ultima lettura a oggi (massimo 7 giorni)
   function dayLabel(ds, oggi){
@@ -3640,7 +3645,7 @@
 
   // ---------- Versione ----------
   // Da tenere uguale al numero di CACHE_NAME in sw.js (rotaia-cache-vNN) a ogni modifica.
-  var APP_VERSION = 38, APP_DATE = "5 novembre 2026";
+  var APP_VERSION = 39, APP_DATE = "6 novembre 2026";
   function renderVersion(){
     var el = document.getElementById("appVersion");
     var base = "Versione " + APP_VERSION + " · " + APP_DATE;

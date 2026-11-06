@@ -393,9 +393,12 @@ gruppo("Tempi di guida");
   var ieri = trip("2026-10-27", "monopattino", 5); ieri.id = ts("2026-10-28T07:31") + "-ier01";
   a = avvia({ reads: [rd("2026-10-27T13:00", 315, 52250), rd("2026-10-28T07:30", 320, 52950)], trips: [ieri] }, "2026-10-28T12:00");
   check(a.t.tempiGuida().giorni[0].giorno === "2026-10-27", "km del mattino salvati su ieri: tempo su ieri");
-  // lettura del mattino senza spostamento salvato: regola del mattino (giorno prima)
+  // lettura del mattino senza spostamento salvato, dopo una lettura serale: tempo su oggi
   a = avvia({ reads: [rd("2026-10-27T19:00", 315, 52250), rd("2026-10-28T07:30", 320, 52950)] }, "2026-10-28T12:00");
-  check(a.t.tempiGuida().giorni[0].giorno === "2026-10-27", "lettura del mattino: tempo sul giorno prima");
+  check(a.t.tempiGuida().giorni[0].giorno === "2026-10-28", "lettura del mattino dopo una lettura serale: tempo su oggi");
+  // lettura del mattino senza spostamento salvato e senza lettura serale ieri: regola del mattino (giorno prima)
+  a = avvia({ reads: [rd("2026-10-27T08:00", 315, 52250), rd("2026-10-28T07:30", 320, 52950)] }, "2026-10-28T12:00");
+  check(a.t.tempiGuida().giorni[0].giorno === "2026-10-27", "lettura del mattino senza lettura serale ieri: tempo sul giorno prima");
   // contatore azzerato o lettura incoerente: scartati
   a = avvia({ reads: [rd("2026-10-27T19:00", 315, 52250), rd("2026-10-28T19:00", 320, 100)] }, "2026-10-28T20:00");
   check(a.t.tempiGuida().giorni.length === 0, "contatore che scende: tratto scartato");
@@ -435,6 +438,22 @@ gruppo("Avviso in Registra ricarica");
   var b = load({ storage: dati(), now: new Date("2026-10-28T18:00").getTime(), g3: { supported: function(){ return false; }, getKey: function(){ return null; }, log: function(){ return ""; } } });
   b.el("toggleChargeFormBtn").click();
   check(b.el("chargePlugWarn").style.display === "none", "senza Bluetooth (es. iPhone) l'avviso non compare");
+})();
+
+// ---------------------------------------------------------------------------
+gruppo("Giorno dei km letti la mattina");
+(function(){
+  // caso reale del 6/11: lettura ieri alle 19:33, stamattina alle 07:57 +1,5 km
+  var a = avvia({ odo: { km: 415.9, date: "2026-11-05", ts: ts("2026-11-05T19:33") } }, "2026-11-06T07:57");
+  var k = a.t.kmDaLettura({ km: 417.4 });
+  check(k.tipo === "nuovi" && k.giorno === "2026-11-06", "letto ieri sera: i km del mattino vanno su oggi", k.giorno);
+  a = avvia({ odo: { km: 415.9, date: "2026-11-05", ts: ts("2026-11-05T08:10") } }, "2026-11-06T07:57");
+  check(a.t.kmDaLettura({ km: 417.4 }).giorno === "2026-11-05", "ieri letto solo la mattina: i km vanno su ieri");
+  a = avvia({ odo: { km: 415.9, date: "2026-11-04", ts: ts("2026-11-04T19:00") } }, "2026-11-06T07:57");
+  check(a.t.kmDaLettura({ km: 417.4 }).giorno === "2026-11-05", "nessuna lettura ieri: i km vanno su ieri");
+  a = avvia({ odo: { km: 415.9, date: "2026-11-05", ts: ts("2026-11-05T19:33") } }, "2026-11-06T18:00");
+  check(a.t.kmDaLettura({ km: 417.4 }).giorno === "2026-11-06", "pomeriggio: oggi");
+  check(a.t.giornoProbabile("2026-11-05", "2026-11-06", 8) === "2026-11-05", "senza istante del riferimento: regola del mattino come prima");
 })();
 
 console.log("\n" + ok + " superati, " + ko + " falliti");
